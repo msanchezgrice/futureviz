@@ -6,8 +6,10 @@ import InputForm from '../components/InputForm';
 import YearCards from '../components/YearCards';
 import dynamic from 'next/dynamic';
 import YearDrawer from '../components/YearDrawer';
+import TimelineGallery from '../components/TimelineGallery';
 import { Plan } from '../lib/types';
 import { demoPlan } from '../lib/demoData';
+import { computeYears, summarizeYear } from '../lib/calc';
 
 const MoneyStrip = dynamic(() => import('../components/MoneyStrip'), { ssr: false });
 
@@ -16,6 +18,8 @@ export default function Page() {
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [isClient, setIsClient] = React.useState(false);
+  const [timelineOpen, setTimelineOpen] = React.useState(false);
+  const [isGeneratingTimeline, setIsGeneratingTimeline] = React.useState(false);
 
   // Load from localStorage only on client side after hydration
   React.useEffect(() => {
@@ -51,6 +55,40 @@ export default function Page() {
     }
   }, [plan, isClient]);
 
+  const handleGenerateTimeline = async () => {
+    setIsGeneratingTimeline(true);
+    try {
+      const years = computeYears(plan);
+      const yearsData = years.map(year => ({
+        year,
+        summary: summarizeYear(plan, year)
+      }));
+
+      const response = await fetch('/api/generate-timeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          years: yearsData,
+          characterDescriptions: plan.characterDescriptions,
+          people: plan.people,
+          cityPlan: plan.cityPlan
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate timeline');
+      }
+
+      const { timelineImages } = await response.json();
+      setPlan({ ...plan, timelineImages });
+    } catch (err) {
+      console.error('Timeline generation failed:', err);
+      alert('Failed to generate timeline images. Please try again.');
+    } finally {
+      setIsGeneratingTimeline(false);
+    }
+  };
+
   return (
     <div className="container">
       <div className="header">
@@ -58,9 +96,14 @@ export default function Page() {
           <img src="/favicon.svg" width={26} height={26} alt="logo" />
           <span>Futureline</span>
         </div>
-        <button className="btn" onClick={() => setSettingsOpen(!settingsOpen)}>
-          {settingsOpen ? '✕ Close Settings' : '⚙ Settings'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn" onClick={() => setTimelineOpen(true)}>
+            🎬 Open Timeline
+          </button>
+          <button className="btn" onClick={() => setSettingsOpen(!settingsOpen)}>
+            {settingsOpen ? '✕ Close Settings' : '⚙ Settings'}
+          </button>
+        </div>
       </div>
 
       {/* Collapsible Settings Panel */}
@@ -102,6 +145,13 @@ export default function Page() {
             }
           });
         }}
+      />
+
+      <TimelineGallery
+        plan={plan}
+        isOpen={timelineOpen}
+        onClose={() => setTimelineOpen(false)}
+        onGenerateTimeline={handleGenerateTimeline}
       />
     </div>
   );

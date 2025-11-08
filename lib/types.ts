@@ -43,6 +43,12 @@ export type CharacterDescription = {
   description: string;
 };
 
+export type TimelineImage = {
+  year: Year;
+  imageUrl: string;
+  generatedAt: number;
+};
+
 export type Plan = {
   startYear: Year; // usually current year
   horizon: number; // years
@@ -54,6 +60,7 @@ export type Plan = {
   journal: Record<Year, DayJournals>; // Multiple day types per year
   familyPhotos?: FamilyPhoto[]; // uploaded family photos
   characterDescriptions?: CharacterDescription[]; // AI-extracted character descriptions mapped to people
+  timelineImages?: TimelineImage[]; // AI-generated image for each year
 };
 
 export type YearSummary = {

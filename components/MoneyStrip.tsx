@@ -20,6 +20,23 @@ const Recharts = {
 type Props = { plan: Plan };
 
 export default function MoneyStrip({ plan }: Props) {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="card" style={{height:280}}>
+        <div className="sectionTitle">Savings (cumulative)</div>
+        <div style={{width:'100%', height:220, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+          <div className="small">Loading chart...</div>
+        </div>
+      </div>
+    );
+  }
+
   const years = computeYears(plan);
   const data = years.map(y => ({
     year: y,
@@ -36,15 +53,21 @@ export default function MoneyStrip({ plan }: Props) {
     <div className="card" style={{height:280}}>
       <div className="sectionTitle">Savings (cumulative)</div>
       <div style={{width:'100%', height:220}}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ left: 12, right: 12, top: 10, bottom: 0 }}>
-            <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-            <XAxis dataKey="year" stroke="#94a3b8" />
-            <YAxis stroke="#94a3b8" tickFormatter={(v:number)=>`$${(v/1000).toFixed(0)}k`} />
-            <Tooltip formatter={(v:any)=>[`$${Number(v).toLocaleString()}`, 'Savings']} labelFormatter={(l:any)=>`Year ${l}`} />
-            <Line type="monotone" dataKey="savings" dot={false} stroke="#60a5fa" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
+        {data && data.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ left: 12, right: 12, top: 10, bottom: 0 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+              <XAxis dataKey="year" stroke="#94a3b8" />
+              <YAxis stroke="#94a3b8" tickFormatter={(v:number)=>`$${(v/1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v:any)=>[`$${Number(v).toLocaleString()}`, 'Savings']} labelFormatter={(l:any)=>`Year ${l}`} />
+              <Line type="monotone" dataKey="savings" dot={false} stroke="#60a5fa" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
+            <div className="small">No data to display</div>
+          </div>
+        )}
       </div>
       <div className="small">One‑offs (costs/credits): {plan.finance.oneOffs.length ? plan.finance.oneOffs.map(o => `${o.label} ${o.year} (${o.amount < 0 ? '-' : '+'}$${Math.abs(o.amount).toLocaleString()})`).join(' · ') : 'none'}</div>
     </div>
