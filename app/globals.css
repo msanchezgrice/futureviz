@@ -1,0 +1,391 @@
+
+:root {
+  --bg: #0b1020;
+  --panel: #0f172a;
+  --muted: #94a3b8;
+  --text: #e5e7eb;
+  --accent: #60a5fa;
+  --accent2: #34d399;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --grid: #1e293b;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+  color: var(--text);
+  background: linear-gradient(180deg, #0b1020 0%, #0b1225 100%);
+}
+a { color: var(--accent); text-decoration: none; }
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.header {
+  display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.4px; }
+.card {
+  background: rgba(17,24,39,0.7);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+/* Layout removed - using new design */
+.btn {
+  background: linear-gradient(180deg, #1f2937 0, #111827 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 10px 14px; border-radius: 8px; color: var(--text);
+  cursor: pointer;
+}
+.btn.primary { background: linear-gradient(180deg, #2563eb 0, #1e40af 100%); border-color: rgba(96,165,250,0.5); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.input, .select {
+  width: 100%; background: #0b1225; border: 1px solid rgba(255,255,255,0.08); color: var(--text);
+  padding: 10px 12px; border-radius: 8px;
+}
+.small { font-size: 12px; color: var(--muted); }
+.sectionTitle { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 6px 0 10px; }
+.hstack { display: flex; gap: 8px; align-items: center; }
+.vstack { display: flex; flex-direction: column; gap: 8px; }
+.badge { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+hr.sep { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 10px 0; }
+
+/* Family rail */
+.timeline {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.timeline table { border-collapse: separate; border-spacing: 0; width: 100%; }
+.timeline th, .timeline td {
+  border-right: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+.timeline thead th {
+  position: sticky; top: 0; background: #0b1225;
+  z-index: 2;
+}
+.timeline tbody th {
+  position: sticky; left: 0; background: #0b1225; z-index: 1;
+  text-align: left;
+}
+.cell {
+  min-width: 58px;
+  text-align: center;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+.cell .tag {
+  display: inline-block; padding: 1px 6px; border-radius: 6px; margin-left: 4px; font-size: 10px;
+  background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.3); color: #86efac;
+}
+.cell.stage-k { background: rgba(59,130,246,0.08); }
+.cell.stage-prek { background: rgba(246,173,85,0.08); }
+.cell.stage-infant { background: rgba(239,68,68,0.08); }
+.cell.stage-grade { background: rgba(52,211,153,0.08); }
+.cell.stage-adult { background: rgba(147,197,253,0.08); }
+
+/* Settings Panel */
+.settings-panel {
+  background: rgba(17,24,39,0.7);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 16px;
+}
+.settings-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-section .input,
+.settings-section .select {
+  font-size: 14px;
+  padding: 12px 14px;
+}
+
+/* Year Cards */
+.year-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.year-card {
+  background: rgba(17,24,39,0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.year-card:hover {
+  border-color: var(--accent);
+  background: rgba(37,99,235,0.1);
+  transform: translateY(-2px);
+}
+.year-card .year-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.year-card .year-info {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.year-card .milestone-badge {
+  font-size: 15px;
+  color: var(--accent2);
+  margin-top: 8px;
+  font-weight: 600;
+  padding: 6px 10px;
+  background: rgba(52, 211, 153, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  border-radius: 8px;
+  line-height: 1.4;
+}
+
+/* Year Detail Modal */
+.year-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.year-modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.year-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  width: 90%;
+  max-width: 1100px;
+  max-height: 85vh;
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 32px;
+  overflow-y: auto;
+  z-index: 101;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+.year-modal-overlay.open .year-modal {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+.year-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.year-modal-header h2 {
+  margin: 0;
+  font-size: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.year-modal-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.composer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+textarea.editor {
+  width: 100%;
+  min-height: 240px;
+  background: #0b1225;
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.editor-actions {
+  display: flex;
+  gap: 12px;
+}
+.vision-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.generated-image-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #0b1225;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.generated-image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Image Carousel */
+.image-carousel {
+  position: relative;
+  width: 100%;
+}
+.carousel-main-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #0b1225;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.carousel-main-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+.carousel-nav:hover {
+  background: rgba(0,0,0,0.8);
+  border-color: var(--accent);
+}
+.carousel-nav.prev {
+  left: 12px;
+}
+.carousel-nav.next {
+  right: 12px;
+}
+.carousel-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.carousel-thumbnails {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding: 4px;
+}
+.carousel-thumbnail {
+  flex-shrink: 0;
+  width: 80px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+.carousel-thumbnail:hover {
+  opacity: 1;
+  border-color: rgba(255,255,255,0.3);
+}
+.carousel-thumbnail.active {
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(96,165,250,0.5);
+}
+.carousel-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.carousel-counter {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 10;
+}
+.scene-description {
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(17,24,39,0.5);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .year-cards {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  .year-modal {
+    width: 95%;
+    padding: 20px;
+  }
+  .year-modal-content {
+    grid-template-columns: 1fr;
+  }
+  .settings-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.footer {
+  margin-top: 20px; color: var(--muted); font-size: 12px; text-align: center;
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#111827"/>
+  <path d="M10 42h44v4H10z" fill="#60a5fa"/>
+  <path d="M10 18h44v4H10z" fill="#34d399"/>
+  <rect x="10" y="26" width="44" height="12" rx="6" fill="#f59e0b"/>
+  <text x="32" y="36" text-anchor="middle" font-size="10" fill="#111827" font-family="Arial, Helvetica, sans-serif">FL</text>
+</svg>
