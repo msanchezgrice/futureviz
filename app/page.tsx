@@ -20,6 +20,7 @@ export default function Page() {
   const [isClient, setIsClient] = React.useState(false);
   const [timelineOpen, setTimelineOpen] = React.useState(false);
   const [isGeneratingTimeline, setIsGeneratingTimeline] = React.useState(false);
+  const [generationProgress, setGenerationProgress] = React.useState<{ current: number; total: number } | undefined>(undefined);
 
   // Load from localStorage only on client side after hydration
   React.useEffect(() => {
@@ -57,35 +58,52 @@ export default function Page() {
 
   const handleGenerateTimeline = async () => {
     setIsGeneratingTimeline(true);
+    setGenerationProgress({ current: 0, total: 0 });
+
     try {
       const years = computeYears(plan);
+      setGenerationProgress({ current: 0, total: years.length });
+
       const yearsData = years.map(year => ({
         year,
         summary: summarizeYear(plan, year)
       }));
 
-      const response = await fetch('/api/generate-timeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          years: yearsData,
-          characterDescriptions: plan.characterDescriptions,
-          people: plan.people,
-          cityPlan: plan.cityPlan
-        })
-      });
+      // Generate images one by one to track progress
+      const timelineImages: any[] = [];
+      for (let i = 0; i < yearsData.length; i++) {
+        const yearData = yearsData[i];
+        setGenerationProgress({ current: i + 1, total: years.length });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate timeline');
+        try {
+          const response = await fetch('/api/generate-timeline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              years: [yearData], // Generate one year at a time
+              characterDescriptions: plan.characterDescriptions,
+              people: plan.people,
+              cityPlan: plan.cityPlan
+            })
+          });
+
+          if (response.ok) {
+            const { timelineImages: newImages } = await response.json();
+            timelineImages.push(...newImages);
+            // Update plan with progress
+            setPlan(prev => ({ ...prev, timelineImages: [...timelineImages] }));
+          }
+        } catch (err) {
+          console.error(`Failed to generate image for year ${yearData.year}:`, err);
+          // Continue with next year
+        }
       }
-
-      const { timelineImages } = await response.json();
-      setPlan({ ...plan, timelineImages });
     } catch (err) {
       console.error('Timeline generation failed:', err);
       alert('Failed to generate timeline images. Please try again.');
     } finally {
       setIsGeneratingTimeline(false);
+      setGenerationProgress(undefined);
     }
   };
 
@@ -152,6 +170,8 @@ export default function Page() {
         isOpen={timelineOpen}
         onClose={() => setTimelineOpen(false)}
         onGenerateTimeline={handleGenerateTimeline}
+        isGenerating={isGeneratingTimeline}
+        generationProgress={generationProgress}
       />
     </div>
   );

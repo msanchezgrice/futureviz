@@ -9,16 +9,42 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onGenerateTimeline: () => void;
+  isGenerating: boolean;
+  generationProgress?: { current: number; total: number };
 };
 
-export default function TimelineGallery({ plan, isOpen, onClose, onGenerateTimeline }: Props) {
+export default function TimelineGallery({ plan, isOpen, onClose, onGenerateTimeline, isGenerating, generationProgress }: Props) {
   const years = computeYears(plan);
   const [currentYearIndex, setCurrentYearIndex] = React.useState(0);
+  const [milestoneIndex, setMilestoneIndex] = React.useState(0);
+
   const currentYear = years[currentYearIndex];
   const currentImage = plan.timelineImages?.find(img => img.year === currentYear);
   const summary = summarizeYear(plan, currentYear);
 
   const hasImages = plan.timelineImages && plan.timelineImages.length > 0;
+
+  // Collect all milestones from all years
+  const allMilestones = React.useMemo(() => {
+    const milestones: Array<{ year: Year; milestone: string }> = [];
+    years.forEach(year => {
+      const s = summarizeYear(plan, year);
+      s.milestones.forEach(m => {
+        milestones.push({ year, milestone: m });
+      });
+    });
+    return milestones;
+  }, [plan, years]);
+
+  // Rotate through milestones while generating
+  React.useEffect(() => {
+    if (isGenerating && allMilestones.length > 0) {
+      const interval = setInterval(() => {
+        setMilestoneIndex(prev => (prev + 1) % allMilestones.length);
+      }, 3000); // Change milestone every 3 seconds
+      return () => clearInterval(interval);
+    }
+  }, [isGenerating, allMilestones.length]);
 
   if (!isOpen) return null;
 
@@ -30,7 +56,73 @@ export default function TimelineGallery({ plan, isOpen, onClose, onGenerateTimel
           <button className="btn" onClick={onClose}>✕ Close</button>
         </div>
 
-        {!hasImages ? (
+        {isGenerating ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '500px', gap: '32px' }}>
+            <div style={{ textAlign: 'center', maxWidth: '700px' }}>
+              <h3 style={{ fontSize: '28px', marginBottom: '24px' }}>Creating Your Future...</h3>
+
+              {/* Milestone Carousel */}
+              <div style={{
+                height: '200px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '32px'
+              }}>
+                {allMilestones.length > 0 && (
+                  <div style={{
+                    animation: 'fadeInOut 3s ease-in-out infinite',
+                    fontSize: '32px',
+                    fontWeight: 600,
+                    color: 'var(--accent)',
+                    textAlign: 'center',
+                    padding: '20px'
+                  }}>
+                    {allMilestones[milestoneIndex].year}
+                    <div style={{ fontSize: '24px', marginTop: '12px', color: 'rgba(255,255,255,0.9)' }}>
+                      {allMilestones[milestoneIndex].milestone}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              {generationProgress && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{
+                    width: '100%',
+                    height: '8px',
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      width: `${(generationProgress.current / generationProgress.total) * 100}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, var(--accent), var(--accent2))',
+                      transition: 'width 0.5s ease'
+                    }} />
+                  </div>
+                  <p className="small" style={{ marginTop: '8px', opacity: 0.7 }}>
+                    Generating image {generationProgress.current} of {generationProgress.total}
+                  </p>
+                </div>
+              )}
+
+              {/* Spinner */}
+              <div style={{
+                width: '60px',
+                height: '60px',
+                border: '4px solid rgba(255,255,255,0.1)',
+                borderTop: '4px solid var(--accent)',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto'
+              }} />
+            </div>
+          </div>
+        ) : !hasImages ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '500px', gap: '24px' }}>
             <div style={{ textAlign: 'center', maxWidth: '600px' }}>
               <h3 style={{ fontSize: '24px', marginBottom: '16px' }}>See Your Future</h3>
