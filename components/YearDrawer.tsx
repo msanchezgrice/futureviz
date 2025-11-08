@@ -30,6 +30,7 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal }: Props
   const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
   const [isGeneratingImage, setIsGeneratingImage] = React.useState(false);
   const [imageError, setImageError] = React.useState<string | null>(null);
+  const [isGeneratingAllDays, setIsGeneratingAllDays] = React.useState(false);
 
   // Update text when year or day type changes
   React.useEffect(() => {
@@ -165,41 +166,40 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal }: Props
                 }}>
                   Generate This Day
                 </button>
-                <button className="btn" style={{ background: 'rgba(52,211,153,0.2)' }} onClick={async () => {
-                  const res = await fetch('/api/ai', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      year,
-                      generateAll: true,
-                      context: { summary: s, people: plan.people, cityPlan: plan.cityPlan }
-                    })
-                  });
-                  const j = await res.json();
-                  if (j.allDayTexts) {
-                    // Save all 5 day types at once
-                    const yearJournals = plan.journal[year] || {};
-                    const updatedJournals = { ...yearJournals };
-                    Object.keys(j.allDayTexts).forEach(dt => {
-                      updatedJournals[dt as DayType] = j.allDayTexts[dt];
-                    });
-                    // Update the plan directly
-                    const updatedPlan = {
-                      ...plan,
-                      journal: {
-                        ...plan.journal,
-                        [year]: updatedJournals
+                <button
+                  className="btn"
+                  style={{ background: 'rgba(52,211,153,0.2)' }}
+                  onClick={async () => {
+                    setIsGeneratingAllDays(true);
+                    try {
+                      const res = await fetch('/api/ai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          year,
+                          generateAll: true,
+                          context: { summary: s, people: plan.people, cityPlan: plan.cityPlan }
+                        })
+                      });
+                      const j = await res.json();
+                      if (j.allDayTexts) {
+                        // Save all 5 day types at once by calling onSaveJournal for each
+                        Object.keys(j.allDayTexts).forEach(dt => {
+                          onSaveJournal(year, dt as DayType, j.allDayTexts[dt]);
+                        });
+                        // Update local text for current day
+                        setText(j.allDayTexts[currentDayType] || text);
                       }
-                    };
-                    // Save to parent
-                    Object.keys(j.allDayTexts).forEach(dt => {
-                      onSaveJournal(year, dt as DayType, j.allDayTexts[dt]);
-                    });
-                    // Update local text for current day
-                    setText(j.allDayTexts[currentDayType] || text);
-                  }
-                }}>
-                  ✨ Generate All 5 Days
+                    } catch (err) {
+                      console.error('Failed to generate all days:', err);
+                      alert('Failed to generate all days. Please try again.');
+                    } finally {
+                      setIsGeneratingAllDays(false);
+                    }
+                  }}
+                  disabled={isGeneratingAllDays}
+                >
+                  {isGeneratingAllDays ? 'Generating All Days...' : '✨ Generate All 5 Days'}
                 </button>
               </div>
               <div className="small">OpenAI generates {DAY_TYPES.find(d => d.type === currentDayType)?.label.toLowerCase()} vignettes</div>
