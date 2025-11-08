@@ -23,30 +23,29 @@ export async function POST(req: NextRequest) {
     // Use OpenAI Vision to analyze the photo and extract character descriptions
     const peopleList = people?.map((p: any) => p.name).join(', ') || 'family members';
 
-    const prompt = `Analyze this family photo and provide detailed physical descriptions of each person for use in AI image generation.
+    const prompt = `You are helping create consistent character designs for AI-generated family timeline images.
 
-The photo should include these people: ${peopleList}
+Analyze this photo and provide character design notes for each person (${peopleList}) to ensure visual consistency when generating future images.
 
-For EACH person, provide a detailed physical description including:
-- Build and body type
-- Hair color, style, and length
-- Eye color (if visible)
-- Skin tone
-- Distinctive facial features (nose shape, facial structure, etc.)
-- Typical clothing style shown
-- Any other notable physical characteristics
+For EACH person, provide general artistic/visual notes:
+- Approximate age range (e.g., "young child", "teenager", "adult in 30s")
+- General build (e.g., "athletic build", "slender", "average build")
+- Hair: color and general style (e.g., "dark brown, shoulder-length wavy hair")
+- Skin tone (e.g., "fair", "olive", "tan", "deep")
+- Clothing style shown (e.g., "casual, wearing jeans and t-shirt")
+- Overall appearance notes for artistic consistency
 
-IMPORTANT: Return ONLY a valid JSON object in this exact format:
+Focus on general visual characteristics that would help an AI artist maintain character consistency, not detailed biometric features.
+
+Return ONLY this JSON format:
 {
   "descriptions": [
     {
       "name": "Person Name",
-      "description": "Detailed physical description..."
+      "description": "Age range, build, hair color/style, skin tone, general appearance notes"
     }
   ]
-}
-
-Be specific and detailed enough that an AI image generator can maintain visual consistency across multiple images. Focus on permanent physical features, not temporary styling.`;
+}`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -59,7 +58,7 @@ Be specific and detailed enough that an AI image generator can maintain visual c
         messages: [
           {
             role: 'system',
-            content: 'You are a visual analysis assistant. Always return valid JSON in the exact format requested.'
+            content: 'You are a character design assistant for AI art generation. Provide general visual characteristics to help maintain character consistency across generated images. Always return valid JSON in the exact format requested.'
           },
           {
             role: 'user',
