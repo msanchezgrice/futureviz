@@ -12,18 +12,30 @@ import { demoPlan } from '../lib/demoData';
 const MoneyStrip = dynamic(() => import('../components/MoneyStrip'), { ssr: false });
 
 export default function Page() {
-  const [plan, setPlan] = React.useState<Plan>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem('futureline.plan');
-      if (saved) { try { return JSON.parse(saved) as Plan; } catch(e){} }
-    }
-    return demoPlan;
-  });
-
+  const [plan, setPlan] = React.useState<Plan>(demoPlan);
   const [selectedYear, setSelectedYear] = React.useState<number | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [isClient, setIsClient] = React.useState(false);
 
+  // Load from localStorage only on client side after hydration
   React.useEffect(() => {
+    setIsClient(true);
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('futureline.plan');
+      if (saved) {
+        try {
+          setPlan(JSON.parse(saved) as Plan);
+        } catch(e) {
+          console.error('Failed to load saved plan:', e);
+        }
+      }
+    }
+  }, []);
+
+  // Save to localStorage (only after client hydration)
+  React.useEffect(() => {
+    if (!isClient) return; // Don't save until after initial load from localStorage
+
     if (typeof window !== 'undefined') {
       try {
         window.localStorage.setItem('futureline.plan', JSON.stringify(plan));
@@ -37,7 +49,7 @@ export default function Page() {
         }
       }
     }
-  }, [plan]);
+  }, [plan, isClient]);
 
   return (
     <div className="container">
