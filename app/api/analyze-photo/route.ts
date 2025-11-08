@@ -23,29 +23,32 @@ export async function POST(req: NextRequest) {
     // Use OpenAI Vision to analyze the photo and extract character descriptions
     const peopleList = people?.map((p: any) => p.name).join(', ') || 'family members';
 
-    const prompt = `You are helping create consistent character designs for AI-generated family timeline images.
+    const prompt = `You are a character design reference assistant for AI-generated artwork. I'm creating a family timeline visualization project.
 
-Analyze this photo and provide character design notes for each person (${peopleList}) to ensure visual consistency when generating future images.
+Count the number of people in this image and create general character design reference notes for each person to maintain visual consistency across AI-generated images.
 
-For EACH person, provide general artistic/visual notes:
-- Approximate age range (e.g., "young child", "teenager", "adult in 30s")
-- General build (e.g., "athletic build", "slender", "average build")
-- Hair: color and general style (e.g., "dark brown, shoulder-length wavy hair")
-- Skin tone (e.g., "fair", "olive", "tan", "deep")
-- Clothing style shown (e.g., "casual, wearing jeans and t-shirt")
-- Overall appearance notes for artistic consistency
+Expected people: ${peopleList}
 
-Focus on general visual characteristics that would help an AI artist maintain character consistency, not detailed biometric features.
+For each person in the image, provide general artistic reference notes:
+- Age category (infant, toddler, child, teen, young adult, middle-aged, senior)
+- Build type (petite, average, athletic, stocky)
+- Hair color and length (blonde/brown/black/red/gray, short/medium/long)
+- General coloring (fair, medium, tan, deep complexion)
+- Style aesthetic shown (casual, formal, sporty, etc.)
 
-Return ONLY this JSON format:
+These are reference notes for character consistency in illustrated/AI-generated art, similar to character sheets used in animation.
+
+Return this exact JSON structure:
 {
   "descriptions": [
     {
-      "name": "Person Name",
-      "description": "Age range, build, hair color/style, skin tone, general appearance notes"
+      "name": "Person 1",
+      "description": "General character design notes..."
     }
   ]
-}`;
+}
+
+Match the person count and use the names I provided if possible.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -58,7 +61,7 @@ Return ONLY this JSON format:
         messages: [
           {
             role: 'system',
-            content: 'You are a character design assistant for AI art generation. Provide general visual characteristics to help maintain character consistency across generated images. Always return valid JSON in the exact format requested.'
+            content: 'You are creating character reference sheets for animated/illustrated content. Provide general design notes similar to what would appear on animation character sheets. Focus on artistic style elements, not personal identification. Always return valid JSON.'
           },
           {
             role: 'user',
