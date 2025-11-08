@@ -6,15 +6,15 @@ import { Plan } from '../lib/types';
 import { computeYears, summarizeYear } from '../lib/calc';
 
 const Recharts = {
-  LineChart: dynamic(() => import('recharts').then(m => m.LineChart), { ssr: false }),
-  Line: dynamic(() => import('recharts').then(m => m.Line), { ssr: false }),
-  XAxis: dynamic(() => import('recharts').then(m => m.XAxis), { ssr: false }),
-  YAxis: dynamic(() => import('recharts').then(m => m.YAxis), { ssr: false }),
-  Tooltip: dynamic(() => import('recharts').then(m => m.Tooltip), { ssr: false }),
-  CartesianGrid: dynamic(() => import('recharts').then(m => m.CartesianGrid), { ssr: false }),
-  ResponsiveContainer: dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false }),
-  Scatter: dynamic(() => import('recharts').then(m => m.Scatter), { ssr: false }),
-  ScatterChart: dynamic(() => import('recharts').then(m => m.ScatterChart), { ssr: false })
+  LineChart: dynamic(() => import('recharts').then(m => m.LineChart as any), { ssr: false }),
+  Line: dynamic(() => import('recharts').then(m => m.Line as any), { ssr: false }),
+  XAxis: dynamic(() => import('recharts').then(m => m.XAxis as any), { ssr: false }),
+  YAxis: dynamic(() => import('recharts').then(m => m.YAxis as any), { ssr: false }),
+  Tooltip: dynamic(() => import('recharts').then(m => m.Tooltip as any), { ssr: false }),
+  CartesianGrid: dynamic(() => import('recharts').then(m => m.CartesianGrid as any), { ssr: false }),
+  ResponsiveContainer: dynamic(() => import('recharts').then(m => m.ResponsiveContainer as any), { ssr: false }),
+  Scatter: dynamic(() => import('recharts').then(m => m.Scatter as any), { ssr: false }),
+  ScatterChart: dynamic(() => import('recharts').then(m => m.ScatterChart as any), { ssr: false })
 };
 
 type Props = { plan: Plan };
