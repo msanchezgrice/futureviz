@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
       ? characterDescriptions.map((cd: any) => `${cd.personName}: ${cd.description}`).join('\n\n')
       : (characterDescriptions || '');
 
+    console.log('=== IMAGE GENERATION DEBUG ===');
+    console.log('Year:', year);
+    console.log('Character Descriptions (phenotype):', characterDescriptions);
+    console.log('Physical Descriptions (formatted):', physicalDescriptions);
+
     // Age-based characteristics for this specific year (dynamic - changes each year)
     const ageDescriptions = people?.map((p: any) => {
       const age = summary?.ages?.[p.id];
@@ -164,6 +169,14 @@ Style Guidelines:
 - Focus on human connection, adventure, or quiet domestic beauty
 
 Photorealistic quality, professional photography, no text overlays.`;
+
+      // Log the first prompt to verify phenotype details are included
+      if (index === 0) {
+        console.log('=== FIRST IMAGE PROMPT ===');
+        console.log('Has physical descriptions:', !!physicalDescriptions);
+        console.log('Has age descriptions:', !!ageDescriptions);
+        console.log('Prompt length:', imagePrompt.length);
+      }
 
       try {
         const result = await ai.models.generateContent({

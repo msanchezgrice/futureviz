@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // Allow up to 60 seconds for generating all 5 days
 
 const DAY_TYPE_PROMPTS: Record<string, string> = {
   christmas: 'Christmas morning',
@@ -22,6 +23,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { year, dayType = 'christmas', context, generateAll = false } = body || {};
   const apiKey = process.env.OPENAI_API_KEY;
+
+  console.log('=== AI API CALLED ===');
+  console.log('Year:', year);
+  console.log('Day Type:', dayType);
+  console.log('Generate All:', generateAll);
+  console.log('Has API Key:', !!apiKey);
 
   const defaultText = DAY_TYPE_DEFAULTS[dayType]?.(year) || DAY_TYPE_DEFAULTS.christmas(year);
 
@@ -76,6 +83,10 @@ export async function POST(req: NextRequest) {
       results.forEach(r => {
         allDayTexts[r.dayType] = r.text;
       });
+
+      console.log('=== RETURNING ALL DAY TEXTS ===');
+      console.log('Keys:', Object.keys(allDayTexts));
+      console.log('Sample text length:', allDayTexts.christmas?.length || 0);
 
       return NextResponse.json({ allDayTexts });
     }

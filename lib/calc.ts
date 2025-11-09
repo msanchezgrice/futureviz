@@ -47,8 +47,22 @@ export function summarizeYear(plan: Plan, year: Year): YearSummary {
   const savingsCumulative = cumulativeSavings(plan.finance, year, plan.startYear);
   const city = cityIn(plan.cityPlan, year);
   const milestones: string[] = [];
-  Object.values(ages).forEach(a => {
-    if (a === 5 || a === 13 || a === 16 || a === 18 || a % 10 === 0) milestones.push(`${a}`);
+  plan.people.forEach(p => {
+    const age = ageIn(p, year);
+    if (age === 0) milestones.push(`${p.name} is born`);
+    else if (age === 1) milestones.push(`${p.name} turns 1`);
+    else if (age === 5) milestones.push(`${p.name} starts kindergarten`);
+    else if (age === 13) milestones.push(`${p.name} becomes a teenager`);
+    else if (age === 16) milestones.push(`${p.name} gets driver's license`);
+    else if (age === 18) milestones.push(`${p.name} graduates high school`);
+    else if (age === 22) milestones.push(`${p.name} graduates college`);
+    else if (age === 30) milestones.push(`${p.name} turns 30`);
+    else if (age === 40) milestones.push(`${p.name} turns 40`);
+    else if (age === 50) milestones.push(`${p.name} turns 50`);
+    else if (age === 60) milestones.push(`${p.name} turns 60`);
+    else if (age === 65) milestones.push(`${p.name} can retire`);
+    else if (age === 70) milestones.push(`${p.name} turns 70`);
+    else if (age === 80) milestones.push(`${p.name} turns 80`);
   });
   const moments: string[] = [];
   if (plan.experiences) {

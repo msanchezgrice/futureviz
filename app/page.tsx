@@ -7,6 +7,7 @@ import YearCards from '../components/YearCards';
 import dynamic from 'next/dynamic';
 import YearDrawer from '../components/YearDrawer';
 import TimelineGallery from '../components/TimelineGallery';
+import VisionGallery from '../components/VisionGallery';
 import { Plan } from '../lib/types';
 import { demoPlan } from '../lib/demoData';
 import { computeYears, summarizeYear } from '../lib/calc';
@@ -38,17 +39,36 @@ export default function Page() {
   }, []);
 
   // Save to localStorage (only after client hydration)
+  // Exclude timeline images and vision board images to prevent quota exceeded errors
   React.useEffect(() => {
     if (!isClient) return; // Don't save until after initial load from localStorage
 
     if (typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem('futureline.plan', JSON.stringify(plan));
+        // Save plan without large images (they can be regenerated)
+        const { timelineImages, visionBoardImages, ...planWithoutImages } = plan;
+
+        // Also limit family photos to prevent quota issues
+        const planToSave = {
+          ...planWithoutImages,
+          familyPhotos: planWithoutImages.familyPhotos?.slice(0, 5) // Only keep first 5 photos
+        };
+
+        const jsonString = JSON.stringify(planToSave);
+        console.log(`[localStorage] Saving plan: ${(jsonString.length / 1024).toFixed(1)} KB`);
+
+        window.localStorage.setItem('futureline.plan', jsonString);
       } catch (err: any) {
         if (err.name === 'QuotaExceededError') {
           console.error('localStorage quota exceeded. Your plan is too large to save.');
-          // Optionally show a toast/notification to the user
-          alert('Warning: Your plan is too large to save automatically. Consider removing some photos to reduce size. Your changes will be lost when you refresh the page.');
+          // Try saving without family photos at all
+          try {
+            const { timelineImages, visionBoardImages, familyPhotos, ...planMinimal } = plan;
+            window.localStorage.setItem('futureline.plan', JSON.stringify(planMinimal));
+            alert('Warning: Your plan has too many photos. Only settings and text saved. Photos will be lost on refresh.');
+          } catch {
+            alert('Critical: Cannot save your plan. Please remove photos and refresh.');
+          }
         } else {
           console.error('Failed to save plan:', err);
         }
@@ -118,6 +138,18 @@ export default function Page() {
           <button className="btn" onClick={() => setTimelineOpen(true)}>
             🎬 Open Timeline
           </button>
+          <button
+            className="btn"
+            onClick={() => {
+              if (confirm('Clear all timeline images and regenerate from scratch? (Your day texts and settings will be preserved)')) {
+                setPlan(prev => ({ ...prev, timelineImages: [] }));
+                alert('Timeline cache cleared! Click "See the Future" to regenerate.');
+              }
+            }}
+            title="Clear timeline image cache"
+          >
+            🗑️ Clear Cache
+          </button>
           <button className="btn" onClick={() => setSettingsOpen(!settingsOpen)}>
             {settingsOpen ? '✕ Close Settings' : '⚙ Settings'}
           </button>
@@ -147,6 +179,9 @@ export default function Page() {
         <MoneyStrip plan={plan} />
       </div>
 
+      {/* Vision Gallery */}
+      <VisionGallery plan={plan} />
+
       <div className="footer">All data is local to your browser in MVP. Optional AI uses your own API key.</div>
 
       <YearDrawer
@@ -161,6 +196,31 @@ export default function Page() {
               ...plan.journal,
               [year]: { ...yearJournals, [dayType]: text }
             }
+          });
+        }}
+        onSaveAllDayJournals={(year, allDayTexts) => {
+          // Save all day types in a single state update to avoid race condition
+          const yearJournals = plan.journal[year] || {};
+          setPlan({
+            ...plan,
+            journal: {
+              ...plan.journal,
+              [year]: { ...yearJournals, ...allDayTexts }
+            }
+          });
+        }}
+        onSaveVisionImages={(year, dayType, images) => {
+          console.log(`[page.tsx] Saving vision images for ${year} ${dayType}, ${images.length} images`);
+          const existing = plan.visionBoardImages || [];
+          const filtered = existing.filter(vb => !(vb.year === year && vb.dayType === dayType));
+          const newVisionBoards = [
+            ...filtered,
+            { year, dayType, images, generatedAt: Date.now() }
+          ];
+          console.log(`[page.tsx] Total vision boards after save:`, newVisionBoards.length);
+          setPlan({
+            ...plan,
+            visionBoardImages: newVisionBoards
           });
         }}
       />

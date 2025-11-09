@@ -12,10 +12,20 @@ type Props = {
 export default function YearCards({ plan, onSelectYear }: Props) {
   const years = computeYears(plan);
 
+  React.useEffect(() => {
+    console.log('[YearCards] visionBoardImages:', plan.visionBoardImages?.length || 0);
+  }, [plan.visionBoardImages]);
+
   return (
     <div className="year-cards">
       {years.map((year) => {
         const summary = summarizeYear(plan, year);
+
+        // Check if this year has vision board images
+        const hasVisionImages = plan.visionBoardImages?.some(vb => vb.year === year);
+        if (hasVisionImages) {
+          console.log(`[YearCards] Year ${year} has vision images`);
+        }
 
         // Get key life events for this year - expanded milestones
         const milestones = plan.people
@@ -48,7 +58,24 @@ export default function YearCards({ plan, onSelectYear }: Props) {
 
         return (
           <div key={year} className="year-card" onClick={() => onSelectYear(year)}>
-            <div className="year-number">{year}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div className="year-number">{year}</div>
+              {hasVisionImages && (
+                <div
+                  style={{
+                    fontSize: '20px',
+                    lineHeight: '1',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                  }}
+                  title="Has vision board images"
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  📸
+                </div>
+              )}
+            </div>
             {summary.city && <div className="year-info">{summary.city}</div>}
             {plan.people.map(p => {
               const age = ageIn(p, year);

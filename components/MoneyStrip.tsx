@@ -21,8 +21,10 @@ type Props = { plan: Plan };
 
 export default function MoneyStrip({ plan }: Props) {
   const [mounted, setMounted] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    console.log('[MoneyStrip] Mounting...');
     setMounted(true);
   }, []);
 
@@ -43,11 +45,19 @@ export default function MoneyStrip({ plan }: Props) {
     savings: summarizeYear(plan, y).savingsCumulative
   }));
 
+  console.log('[MoneyStrip] Years:', years.length, 'Data points:', data.length);
+  console.log('[MoneyStrip] Sample data:', data.slice(0, 3));
+
   const oneOffPoints = plan.finance.oneOffs.map(o => ({
     year: o.year, savings: summarizeYear(plan, Math.max(plan.startYear, Math.min(plan.startYear + plan.horizon, o.year))).savingsCumulative, label: o.label, amount: o.amount
   }));
 
   const { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Scatter, ScatterChart } = Recharts as any;
+
+  console.log('[MoneyStrip] Recharts components loaded:', {
+    LineChart: !!LineChart,
+    ResponsiveContainer: !!ResponsiveContainer
+  });
 
   return (
     <div className="card" style={{height:280}}>

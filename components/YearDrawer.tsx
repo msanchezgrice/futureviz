@@ -9,6 +9,8 @@ type Props = {
   year?: Year;
   onClose: () => void;
   onSaveJournal: (year: Year, dayType: DayType, text: string) => void;
+  onSaveAllDayJournals: (year: Year, allDayTexts: Record<DayType, string>) => void;
+  onSaveVisionImages: (year: Year, dayType: DayType, images: Array<{imageUrl: string, sceneDescription: string, index: number}>) => void;
 };
 
 const DAY_TYPES: { type: DayType; label: string; emoji: string }[] = [
@@ -19,7 +21,7 @@ const DAY_TYPES: { type: DayType; label: string; emoji: string }[] = [
   { type: 'birthday', label: 'Birthday', emoji: '🎂' }
 ];
 
-export default function YearDrawer({ plan, year, onClose, onSaveJournal }: Props) {
+export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveAllDayJournals, onSaveVisionImages }: Props) {
   if (!year) return null;
   const s = summarizeYear(plan, year);
   const people = plan.people;
@@ -31,20 +33,40 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal }: Props
   const [isGeneratingImage, setIsGeneratingImage] = React.useState(false);
   const [imageError, setImageError] = React.useState<string | null>(null);
   const [isGeneratingAllDays, setIsGeneratingAllDays] = React.useState(false);
+  const [isGeneratingThisDay, setIsGeneratingThisDay] = React.useState(false);
+  const skipNextResetRef = React.useRef(false);
 
-  // Update text when year or day type changes
+  // Update text and load saved vision images when year or day type changes
   React.useEffect(() => {
+    // Skip text reset if we just generated content
+    if (skipNextResetRef.current) {
+      skipNextResetRef.current = false;
+      return;
+    }
+
     const dayJournals = plan.journal[year] || {};
     setText(dayJournals[currentDayType] ?? '');
-    setGeneratedImages([]);
-    setCurrentImageIndex(0);
+
+    // Load saved vision board images for this year/day
+    const savedVisionBoard = plan.visionBoardImages?.find(
+      vb => vb.year === year && vb.dayType === currentDayType
+    );
+    if (savedVisionBoard) {
+      setGeneratedImages(savedVisionBoard.images);
+      setCurrentImageIndex(0);
+    } else {
+      setGeneratedImages([]);
+      setCurrentImageIndex(0);
+    }
+
     setImageError(null);
-  }, [year, currentDayType, plan.journal]);
+  }, [year, currentDayType, plan.journal, plan.visionBoardImages]);
 
   const handleGenerateImages = async () => {
     setIsGeneratingImage(true);
     setImageError(null);
     try {
+      console.log(`[YearDrawer] Generating images for ${year} ${currentDayType}`);
       const res = await fetch('/api/generate-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,9 +85,17 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal }: Props
       if (!res.ok) {
         throw new Error(data.error || 'Failed to generate images');
       }
-      setGeneratedImages(data.images || []);
+      const images = data.images || [];
+      console.log(`[YearDrawer] Received ${images.length} images from API`);
+      setGeneratedImages(images);
       setCurrentImageIndex(0);
+
+      // Persist images to plan
+      console.log(`[YearDrawer] Calling onSaveVisionImages for ${year} ${currentDayType}`);
+      onSaveVisionImages(year, currentDayType, images);
+      console.log('[YearDrawer] onSaveVisionImages called successfully');
     } catch (err: any) {
+      console.error('[YearDrawer] Error generating images:', err);
       setImageError(err.message || 'Failed to generate images');
     } finally {
       setIsGeneratingImage(false);
@@ -151,51 +181,88 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal }: Props
                 <button className="btn primary" onClick={() => onSaveJournal(year, currentDayType, text)}>
                   Save {DAY_TYPES.find(d => d.type === currentDayType)?.emoji}
                 </button>
-                <button className="btn" onClick={async () => {
-                  const res = await fetch('/api/ai', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      year,
-                      dayType: currentDayType,
-                      context: { summary: s, people: plan.people, cityPlan: plan.cityPlan }
-                    })
-                  });
-                  const j = await res.json();
-                  setText((j.text || '') + '\n\n' + text);
-                }}>
-                  Generate This Day
-                </button>
                 <button
                   className="btn"
-                  style={{ background: 'rgba(52,211,153,0.2)' }}
                   onClick={async () => {
-                    setIsGeneratingAllDays(true);
+                    setIsGeneratingThisDay(true);
                     try {
                       const res = await fetch('/api/ai', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           year,
-                          generateAll: true,
+                          dayType: currentDayType,
                           context: { summary: s, people: plan.people, cityPlan: plan.cityPlan }
                         })
                       });
                       const j = await res.json();
-                      if (j.allDayTexts) {
-                        // Save all 5 day types at once by calling onSaveJournal for each
-                        Object.keys(j.allDayTexts).forEach(dt => {
-                          onSaveJournal(year, dt as DayType, j.allDayTexts[dt]);
-                        });
-                        // Update local text for current day
-                        setText(j.allDayTexts[currentDayType] || text);
-                      }
+                      setText((j.text || '') + '\n\n' + text);
                     } catch (err) {
-                      console.error('Failed to generate all days:', err);
-                      alert('Failed to generate all days. Please try again.');
+                      console.error('Failed to generate day:', err);
+                      alert('Failed to generate day text');
                     } finally {
-                      setIsGeneratingAllDays(false);
+                      setIsGeneratingThisDay(false);
                     }
+                  }}
+                  disabled={isGeneratingThisDay}
+                >
+                  {isGeneratingThisDay ? 'Generating...' : 'Generate This Day'}
+                </button>
+                <button
+                  className="btn"
+                  style={{ background: 'rgba(52,211,153,0.2)' }}
+                  onClick={() => {
+                    console.log('Generate All Days button clicked');
+                    setIsGeneratingAllDays(true);
+
+                    fetch('/api/ai', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        year,
+                        generateAll: true,
+                        context: { summary: s, people: plan.people, cityPlan: plan.cityPlan }
+                      })
+                    })
+                    .then(res => {
+                      console.log('Response received:', res.status);
+                      if (!res.ok) {
+                        throw new Error(`HTTP ${res.status}`);
+                      }
+                      return res.json();
+                    })
+                    .then(j => {
+                      console.log('Response data:', j);
+                      if (j.allDayTexts) {
+                        console.log('All day texts keys:', Object.keys(j.allDayTexts));
+
+                        // Set flag to prevent useEffect from resetting text
+                        skipNextResetRef.current = true;
+
+                        // Update current day text FIRST
+                        const newText = j.allDayTexts[currentDayType] || '';
+                        console.log('Setting text for', currentDayType, ':', newText.substring(0, 50));
+                        setText(newText);
+
+                        // Save all 5 day types in a SINGLE state update to avoid race condition
+                        console.log('Saving all day texts:', Object.keys(j.allDayTexts));
+                        onSaveAllDayJournals(year, j.allDayTexts as Record<DayType, string>);
+
+                        console.log('All days saved!');
+                        alert(`✅ Successfully generated all 5 days for ${year}! Switch between day tabs to see each one.`);
+                      } else {
+                        console.error('No allDayTexts in response:', j);
+                        alert('Unexpected response format. Check console for details.');
+                      }
+                    })
+                    .catch(err => {
+                      console.error('Error:', err);
+                      alert(`Failed to generate all days: ${err.message}`);
+                    })
+                    .finally(() => {
+                      console.log('Done, resetting loading state');
+                      setIsGeneratingAllDays(false);
+                    });
                   }}
                   disabled={isGeneratingAllDays}
                 >

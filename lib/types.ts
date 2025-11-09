@@ -49,6 +49,19 @@ export type TimelineImage = {
   generatedAt: number;
 };
 
+export type VisionImage = {
+  imageUrl: string;
+  sceneDescription: string;
+  index: number;
+};
+
+export type VisionBoardImages = {
+  year: Year;
+  dayType: DayType;
+  images: VisionImage[];
+  generatedAt: number;
+};
+
 export type Plan = {
   startYear: Year; // usually current year
   horizon: number; // years
@@ -61,6 +74,7 @@ export type Plan = {
   familyPhotos?: FamilyPhoto[]; // uploaded family photos
   characterDescriptions?: CharacterDescription[]; // AI-extracted character descriptions mapped to people
   timelineImages?: TimelineImage[]; // AI-generated image for each year
+  visionBoardImages?: VisionBoardImages[]; // Vision board images per year/day
 };
 
 export type YearSummary = {

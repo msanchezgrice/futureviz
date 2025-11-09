@@ -50,7 +50,7 @@ export default function TimelineGallery({ plan, isOpen, onClose, onGenerateTimel
 
   return (
     <div className="year-modal-overlay open" onClick={onClose}>
-      <div className="year-modal" style={{ maxWidth: '1400px', height: '90vh' }} onClick={(e) => e.stopPropagation()}>
+      <div className="year-modal" style={{ maxWidth: '1200px', height: '85vh', maxHeight: '800px' }} onClick={(e) => e.stopPropagation()}>
         <div className="year-modal-header">
           <h2>Your Timeline</h2>
           <button className="btn" onClick={onClose}>✕ Close</button>
@@ -71,19 +71,27 @@ export default function TimelineGallery({ plan, isOpen, onClose, onGenerateTimel
                 marginBottom: '32px'
               }}>
                 {allMilestones.length > 0 && (
-                  <div style={{
-                    animation: 'fadeInOut 3s ease-in-out infinite',
-                    fontSize: '32px',
-                    fontWeight: 600,
-                    color: 'var(--accent)',
-                    textAlign: 'center',
-                    padding: '20px'
-                  }}>
-                    {allMilestones[milestoneIndex].year}
-                    <div style={{ fontSize: '24px', marginTop: '12px', color: 'rgba(255,255,255,0.9)' }}>
+                  <>
+                    <div style={{
+                      animation: 'fadeInOut 3s ease-in-out infinite',
+                      fontSize: '48px',
+                      fontWeight: 700,
+                      color: 'var(--accent)',
+                      textAlign: 'center',
+                      padding: '20px'
+                    }}>
+                      {allMilestones[milestoneIndex].year}
+                    </div>
+                    <div style={{
+                      fontSize: '28px',
+                      marginTop: '16px',
+                      color: 'rgba(255,255,255,0.95)',
+                      textAlign: 'center',
+                      fontWeight: 500
+                    }}>
                       {allMilestones[milestoneIndex].milestone}
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
 
