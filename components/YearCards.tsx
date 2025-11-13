@@ -31,6 +31,8 @@ export default function YearCards({ plan, onSelectYear }: Props) {
         const milestones = plan.people
           .map(p => {
             const age = ageIn(p, year);
+            // Skip milestones for people not yet born
+            if (age < 0) return null;
             if (p.role === 'child') {
               const stage = childStage(age, p.schoolStartAge ?? 5);
               // Major life milestones
@@ -81,7 +83,7 @@ export default function YearCards({ plan, onSelectYear }: Props) {
               const age = ageIn(p, year);
               return (
                 <div key={p.id} className="year-info">
-                  {p.name}: {age}
+                  {p.name}: {age < 0 ? '—' : age}
                 </div>
               );
             })}

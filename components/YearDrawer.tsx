@@ -124,18 +124,17 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
             <div className="small">Location</div>
             <div style={{ fontSize: '18px', fontWeight: 500 }}>{s.city ?? 'Unknown'}</div>
           </div>
-          <div>
-            <div className="small">Savings</div>
-            <div style={{ fontSize: '18px', fontWeight: 500 }}>${s.savingsCumulative.toLocaleString()}</div>
-          </div>
           <div style={{ flex: 1 }}>
             <div className="small">Family</div>
             <div style={{ display: 'flex', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
-              {people.map(p => (
-                <div key={p.id} className="badge" style={{ padding: '4px 12px' }}>
-                  {p.name}: {s.ages[p.id]} yrs
-                </div>
-              ))}
+              {people.map(p => {
+                const age = s.ages[p.id];
+                return (
+                  <div key={p.id} className="badge" style={{ padding: '4px 12px' }}>
+                    {p.name}: {age < 0 ? 'Not yet born' : `${age} yrs`}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

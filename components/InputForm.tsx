@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plan, Person, OneOff, CityPlan, FamilyPhoto } from '../lib/types';
+import { Plan, Person, CityPlan, FamilyPhoto } from '../lib/types';
 import { id, thisYear } from '../lib/util';
 
 type Props = {
@@ -152,7 +152,8 @@ export default function InputForm({ plan, onChange }: Props) {
 
   const addKid = () => {
     const name = `Child ${local.people.filter(p => p.role === 'child').length + 1}`;
-    const kid: Person = { id: id('kid'), name, birthYear: y - 0, role: 'child', schoolStartAge: 5 };
+    // Default to birth year 2 years in the future for planning future children
+    const kid: Person = { id: id('kid'), name, birthYear: y + 2, role: 'child', schoolStartAge: 5 };
     setLocal({ ...local, people: [...local.people, kid] });
   };
 
@@ -160,17 +161,8 @@ export default function InputForm({ plan, onChange }: Props) {
     setLocal({ ...local, people: local.people.filter(p => p.id !== pid) });
   };
 
-  const addOneOff = () => {
-    const oo: OneOff = { id: id('oo'), year: local.startYear, label: 'One‑off', amount: -10000 };
-    setLocal({ ...local, finance: { ...local.finance, oneOffs: [...local.finance.oneOffs, oo] } });
-  };
-
-  const removeOneOff = (oid: string) => {
-    setLocal({ ...local, finance: { ...local.finance, oneOffs: local.finance.oneOffs.filter(o => o.id !== oid) } });
-  };
-
   const addCity = () => {
-    const cp: CityPlan = { yearFrom: local.startYear, city: 'Austin' };
+    const cp: CityPlan = { yearFrom: local.startYear, city: 'San Francisco' };
     setLocal({ ...local, cityPlan: [...local.cityPlan, cp] });
   };
 
@@ -311,10 +303,16 @@ export default function InputForm({ plan, onChange }: Props) {
                 </select>
               </div>
               <div style={{flex:1}}>
-                <label className="small">Current age</label>
-                <input className="input" type="number"
-                  value={y - p.birthYear}
-                  onChange={e => updatePerson({ ...p, birthYear: y - parseInt(e.target.value || '0', 10) })} />
+                <label className="small">{p.birthYear <= y ? 'Current age' : 'Birth year'}</label>
+                {p.birthYear <= y ? (
+                  <input className="input" type="number"
+                    value={y - p.birthYear}
+                    onChange={e => updatePerson({ ...p, birthYear: y - parseInt(e.target.value || '0', 10) })} />
+                ) : (
+                  <input className="input" type="number"
+                    value={p.birthYear}
+                    onChange={e => updatePerson({ ...p, birthYear: parseInt(e.target.value || String(y), 10) })} />
+                )}
               </div>
               <div style={{flex:1}}>
                 <label className="small">School start age</label>
@@ -330,49 +328,6 @@ export default function InputForm({ plan, onChange }: Props) {
         <div className="hstack">
           <button className="btn" onClick={addKid}>Add child</button>
         </div>
-      </div>
-
-      <div>
-        <div className="sectionTitle">Money</div>
-        <div className="hstack" style={{gap:12}}>
-          <div style={{flex:1}}>
-            <label className="small">Starting savings</label>
-            <input className="input" type="number" value={local.finance.startCumulative ?? 0}
-              onChange={e => update({ finance: { ...local.finance, startCumulative: parseFloat(e.target.value || '0') } })} />
-          </div>
-          <div style={{flex:1}}>
-            <label className="small">Annual savings (after tax)</label>
-            <input className="input" type="number" value={local.finance.annualSavings}
-              onChange={e => update({ finance: { ...local.finance, annualSavings: parseFloat(e.target.value || '0') } })} />
-          </div>
-          <div style={{flex:1}}>
-            <label className="small">Growth %</label>
-            <input className="input" type="number" value={local.finance.growthPct ?? 0}
-              onChange={e => update({ finance: { ...local.finance, growthPct: parseFloat(e.target.value || '0') } })} />
-          </div>
-        </div>
-
-        <div className="small" style={{marginTop:8}}>One‑offs</div>
-        {local.finance.oneOffs.map((o) => (
-          <div key={o.id} className="hstack" style={{gap:8, marginBottom:6}}>
-            <input className="input" style={{flex:2}} placeholder="Label" value={o.label} onChange={e => {
-              const arr = local.finance.oneOffs.map(oo => oo.id === o.id ? { ...oo, label: e.target.value } : oo);
-              setLocal({ ...local, finance: { ...local.finance, oneOffs: arr } });
-            }} />
-            <input className="input" style={{flex:1}} type="number" placeholder="Year" value={o.year}
-              onChange={e => {
-                const arr = local.finance.oneOffs.map(oo => oo.id === o.id ? { ...oo, year: parseInt(e.target.value || '0',10) } : oo);
-                setLocal({ ...local, finance: { ...local.finance, oneOffs: arr } });
-              }} />
-            <input className="input" style={{flex:1}} type="number" placeholder="Amount (− for cost)" value={o.amount}
-              onChange={e => {
-                const arr = local.finance.oneOffs.map(oo => oo.id === o.id ? { ...oo, amount: parseFloat(e.target.value || '0') } : oo);
-                setLocal({ ...local, finance: { ...local.finance, oneOffs: arr } });
-              }} />
-            <button className="btn" onClick={() => removeOneOff(o.id)}>Delete</button>
-          </div>
-        ))}
-        <button className="btn" onClick={addOneOff}>Add one‑off</button>
       </div>
 
       <div>

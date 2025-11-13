@@ -49,6 +49,8 @@ export function summarizeYear(plan: Plan, year: Year): YearSummary {
   const milestones: string[] = [];
   plan.people.forEach(p => {
     const age = ageIn(p, year);
+    // Skip milestones for people not yet born
+    if (age < 0) return;
     if (age === 0) milestones.push(`${p.name} is born`);
     else if (age === 1) milestones.push(`${p.name} turns 1`);
     else if (age === 5) milestones.push(`${p.name} starts kindergarten`);

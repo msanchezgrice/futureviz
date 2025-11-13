@@ -4,15 +4,12 @@ import React from 'react';
 import './globals.css';
 import InputForm from '../components/InputForm';
 import YearCards from '../components/YearCards';
-import dynamic from 'next/dynamic';
 import YearDrawer from '../components/YearDrawer';
 import TimelineGallery from '../components/TimelineGallery';
 import VisionGallery from '../components/VisionGallery';
 import { Plan } from '../lib/types';
 import { demoPlan } from '../lib/demoData';
 import { computeYears, summarizeYear } from '../lib/calc';
-
-const MoneyStrip = dynamic(() => import('../components/MoneyStrip'), { ssr: false });
 
 export default function Page() {
   const [plan, setPlan] = React.useState<Plan>(demoPlan);
@@ -169,14 +166,6 @@ export default function Page() {
           Your Timeline
         </h3>
         <YearCards plan={plan} onSelectYear={setSelectedYear} />
-      </div>
-
-      {/* Savings Chart */}
-      <div style={{ marginTop: '24px' }}>
-        <h3 style={{ marginBottom: '16px', fontSize: '20px', fontWeight: 600 }}>
-          Savings Over Time
-        </h3>
-        <MoneyStrip plan={plan} />
       </div>
 
       {/* Vision Gallery */}
