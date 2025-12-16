@@ -54,6 +54,22 @@ export function extractFirstInlineImage(response: GenerateContentResponse): Inli
   return null;
 }
 
+export function getResponseText(response: GenerateContentResponse): string {
+  const parts =
+    (response as any).parts ||
+    response.candidates?.[0]?.content?.parts ||
+    [];
+
+  let text = '';
+  for (const part of parts) {
+    if (typeof part?.text === 'string') {
+      if (typeof part.thought === 'boolean' && part.thought) continue;
+      text += part.text;
+    }
+  }
+  return text;
+}
+
 export function safeJsonParse<T>(text: string): T {
   const trimmed = (text || '').trim();
   const jsonMatch =
@@ -62,4 +78,3 @@ export function safeJsonParse<T>(text: string): T {
   const jsonStr = (jsonMatch ? jsonMatch[1] : trimmed).trim();
   return JSON.parse(jsonStr) as T;
 }
-

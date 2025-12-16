@@ -83,11 +83,23 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
           }
         })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to generate images');
+      let data: any = null;
+      let rawText: string | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        rawText = await res.text().catch(() => null);
       }
-      const images = data.images || [];
+
+      if (!res.ok) {
+        const message =
+          data?.error ||
+          (rawText ? rawText.slice(0, 200) : null) ||
+          `Failed to generate images (HTTP ${res.status})`;
+        throw new Error(message);
+      }
+
+      const images = data?.images || [];
       console.log(`[YearDrawer] Received ${images.length} images from API`);
       setGeneratedImages(images);
       setCurrentImageIndex(0);

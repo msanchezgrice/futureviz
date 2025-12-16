@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createGeminiClient, dataUrlToInlineDataPart, getGeminiModels, safeJsonParse } from '../../../lib/gemini';
+import { createGeminiClient, dataUrlToInlineDataPart, getGeminiModels, getResponseText, safeJsonParse } from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
 
@@ -87,7 +87,7 @@ Return JSON only.`;
       }
     });
 
-    const parsed = safeJsonParse<{ descriptions: Array<{ name: string; description: string }> }>(response.text || '');
+    const parsed = safeJsonParse<{ descriptions: Array<{ name: string; description: string }> }>(getResponseText(response));
     const parsedDescriptions = parsed || { descriptions: [] };
 
     // Map descriptions to person IDs

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createGeminiClient, getGeminiModels, safeJsonParse } from '../../../lib/gemini';
+import { createGeminiClient, getGeminiModels, getResponseText, safeJsonParse } from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Allow up to 60 seconds for generating all 5 days
@@ -84,7 +84,7 @@ Return JSON only.`;
         }
       });
 
-      const parsed = safeJsonParse<{ allDayTexts: Record<string, string> }>(response.text || '');
+      const parsed = safeJsonParse<{ allDayTexts: Record<string, string> }>(getResponseText(response));
       const allDayTexts = parsed.allDayTexts || {};
 
       // Ensure all keys exist with sensible fallbacks.
@@ -127,7 +127,7 @@ Return JSON only with key "text".`;
       }
     });
 
-    const parsed = safeJsonParse<{ text: string }>(response.text || '');
+    const parsed = safeJsonParse<{ text: string }>(getResponseText(response));
     return NextResponse.json({ text: parsed.text || defaultText });
   } catch (err: any) {
     if (generateAll) {
