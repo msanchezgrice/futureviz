@@ -11,7 +11,7 @@ import {
 } from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120; // 5x 1K images + scene planning
+export const maxDuration = 300; // 5x 1K images + scene planning
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
