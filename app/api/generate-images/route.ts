@@ -14,7 +14,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 // Back-compat endpoint for older client bundles that still call /api/generate-images.
-// Implemented as a single request with parallel image generation to stay under Vercel timeouts.
+// Implemented as a single multi-turn image chat for best character consistency.
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { year, dayType, context, dayComposerText, characterDescriptions, referencePhotoDataUrl } = body || {};
@@ -117,7 +117,12 @@ Return JSON only.`;
       return NextResponse.json({ error: 'Failed to generate 5 scene ideas' }, { status: 500 });
     }
 
-    // 2) Anchor image (identity lock)
+    // 2) Multi-turn image chat (best consistency; slower but stable identity)
+    const chat = ai.chats.create({
+      model: imageModel,
+      config: { responseModalities: ['IMAGE'], imageConfig: { imageSize, aspectRatio } }
+    });
+
     const anchorPrompt = `You are generating a photorealistic lifestyle photo series of the SAME FAMILY on the SAME DAY.
 
 Hard requirements:
@@ -142,179 +147,37 @@ Generate an ANCHOR photo: a clear, well-lit family moment with all faces visible
       );
     }
 
-    const anchorResponse = await ai.models.generateContent({
-      model: imageModel,
-      contents: [{ role: 'user', parts: anchorParts }],
-      config: { responseModalities: ['IMAGE'], imageConfig: { imageSize, aspectRatio } }
-    });
-
+    const anchorResponse = await chat.sendMessage({ message: anchorParts as any });
     const anchorImage = extractFirstInlineImage(anchorResponse);
-    if (!anchorImage) {
-      return NextResponse.json({ error: 'Failed to generate anchor image' }, { status: 500 });
-    }
+    if (!anchorImage) return NextResponse.json({ error: 'Failed to generate anchor image' }, { status: 500 });
 
-    // 3) Generate 5 images in parallel (anchor + optional user reference image included)
-    const generationPromises = sceneIdeas.map(async (scene) => {
-      const prompt = `Create a photorealistic, aspirational lifestyle photograph for this scene:
+    const images: Array<{ imageUrl: string; sceneDescription: string; index: number }> = [];
 
+    for (const scene of sceneIdeas) {
+      const prompt = `Shot ${scene.index + 1} of 5 (${scene.timeOfDay || 'time unknown'}):
 ${scene.sceneDescription}
 
-CRITICAL - CHARACTER CONSISTENCY (Image ${scene.index + 1} of 5):
-- This is part of a series showing the SAME FAMILY throughout ONE DAY.
-- The CURRENT image must match the ANCHOR identities exactly (faces/hair/skin tone/distinctive features).
+CRITICAL:
+- Must be the SAME FAMILY as the anchor image (identical faces/hair/skin tone/distinctive features).
 - Correct ages for the year.
+- Photorealistic, professional photography; no text overlays.`;
 
-Location: ${city}
-Year: ${year}
-${scene.timeOfDay ? `Time of day: ${scene.timeOfDay}` : ''}
-
-${ageDescriptions ? `Ages:\n${ageDescriptions}\n` : ''}
-${physicalDescriptions ? `Character bible:\n${physicalDescriptions}\n` : ''}
-
-Style:
-- High-end, natural lifestyle photography
-- Candid, authentic moment
-- No text overlays`;
-
-      const parts: any[] = [
-        { text: prompt },
-        { text: 'ANCHOR IMAGE (identity reference):' },
-        { inlineData: { mimeType: anchorImage.mimeType, data: anchorImage.data } }
-      ];
-
-      if (referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')) {
-        parts.push(
-          { text: 'USER REFERENCE PHOTO (identity reference):' },
-          dataUrlToInlineDataPart(String(referencePhotoDataUrl))
-        );
-      }
-
-      const resp = await ai.models.generateContent({
-        model: imageModel,
-        contents: [{ role: 'user', parts }],
-        config: { responseModalities: ['IMAGE'], imageConfig: { imageSize, aspectRatio } }
-      });
-
+      const resp = await chat.sendMessage({ message: prompt });
       const image = extractFirstInlineImage(resp);
-      if (!image) return null;
-      return { scene, image };
-    });
+      if (!image) continue;
+      images.push({
+        imageUrl: inlineImageToDataUrl(image),
+        sceneDescription: scene.sceneDescription,
+        index: scene.index
+      });
+    }
 
-    const generated = await Promise.all(generationPromises);
-    const generatedOk = generated.filter(Boolean) as Array<{ scene: any; image: { mimeType: string; data: string } }>;
-
-    if (generatedOk.length === 0) {
+    if (images.length === 0) {
       return NextResponse.json({ error: 'No images were generated successfully' }, { status: 500 });
     }
 
-    // 4) Judge + optional single retry (parallel). Retry regenerates (not edit) to avoid thoughtSignature multi-turn requirements.
-    const consistencySchema = {
-      type: 'object',
-      properties: {
-        consistent: { type: 'boolean' },
-        issues: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              person: { type: 'string' },
-              issue: { type: 'string' },
-              severity: { type: 'number' }
-            },
-            required: ['person', 'issue', 'severity']
-          }
-        },
-        fixPrompt: { type: 'string' }
-      },
-      required: ['consistent', 'issues', 'fixPrompt']
-    } as const;
-
-    const judged = await Promise.all(generatedOk.map(async (item) => {
-      const judgePrompt = `You are checking character consistency across a photo series.
-
-Compare the ANCHOR image and the CURRENT image. Determine if the people are the same individuals.
-Focus on facial structure, hair, skin tone, and distinctive features. Ignore clothing changes.
-
-Return JSON only.
-If inconsistent, produce a short "fixPrompt" for regenerating the CURRENT image while keeping the scene intact.`;
-
-      const judgeResponse = await ai.models.generateContent({
-        model: textModel,
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: judgePrompt },
-              { text: 'ANCHOR:' },
-              { inlineData: { mimeType: anchorImage.mimeType, data: anchorImage.data } },
-              { text: 'CURRENT:' },
-              { inlineData: { mimeType: item.image.mimeType, data: item.image.data } }
-            ]
-          }
-        ],
-        config: { responseMimeType: 'application/json', responseJsonSchema: consistencySchema }
-      });
-
-      const parsed = safeJsonParse<{ consistent: boolean; fixPrompt: string; issues: Array<{ severity: number }> }>(
-        getResponseText(judgeResponse)
-      );
-
-      const hasMajorIssue = (parsed.issues || []).some(i => Number(i.severity) >= 3);
-      const shouldRetry = parsed.consistent === false && (hasMajorIssue || parsed.fixPrompt?.trim());
-      return { ...item, judge: parsed, shouldRetry };
-    }));
-
-    const retries = await Promise.all(judged.map(async (item) => {
-      if (!item.shouldRetry) return item;
-      const fixPrompt = item.judge.fixPrompt || '';
-
-      const prompt = `Regenerate the image for this scene, preserving the scene content, lighting, and composition, but fixing identity consistency with the anchor:
-
-Scene:
-${item.scene.sceneDescription}
-
-Identity fixes:
-${fixPrompt}
-
-Hard requirements:
-- Match the ANCHOR identities exactly (faces/hair/skin tone/distinctive features).
-- Photorealistic, professional photography; no text overlays.
-Location: ${city}
-Year: ${year}
-${ageDescriptions ? `Ages:\n${ageDescriptions}\n` : ''}`;
-
-      const parts: any[] = [
-        { text: prompt },
-        { text: 'ANCHOR IMAGE (identity reference):' },
-        { inlineData: { mimeType: anchorImage.mimeType, data: anchorImage.data } }
-      ];
-      if (referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')) {
-        parts.push(
-          { text: 'USER REFERENCE PHOTO (identity reference):' },
-          dataUrlToInlineDataPart(String(referencePhotoDataUrl))
-        );
-      }
-
-      const resp = await ai.models.generateContent({
-        model: imageModel,
-        contents: [{ role: 'user', parts }],
-        config: { responseModalities: ['IMAGE'], imageConfig: { imageSize, aspectRatio } }
-      });
-      const retryImage = extractFirstInlineImage(resp);
-      if (!retryImage) return item;
-      return { ...item, image: retryImage };
-    }));
-
-    const images = retries
-      .map((item) => ({
-        imageUrl: inlineImageToDataUrl(item.image),
-        sceneDescription: item.scene.sceneDescription,
-        index: item.scene.index
-      }))
-      .sort((a, b) => a.index - b.index);
-
     return NextResponse.json(
-      { images, sceneIdeas },
+      { images: images.sort((a, b) => a.index - b.index), sceneIdeas },
       {
         status: 200,
         headers: {
@@ -327,4 +190,3 @@ ${ageDescriptions ? `Ages:\n${ageDescriptions}\n` : ''}`;
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
