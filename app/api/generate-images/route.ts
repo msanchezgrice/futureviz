@@ -147,8 +147,46 @@ Year: ${year}
 ${ageDescriptions ? `Ages in this year:\n${ageDescriptions}\n` : ''}
 ${physicalDescriptions ? `Character bible (must match across all images):\n${physicalDescriptions}\n` : ''}`;
 
-    // Step 3: Generate each scene (chat history is the main consistency mechanism).
+    // Step 3: Anchor image (helps lock identities across the series)
+    const anchorParts: any[] = [
+      { text: `${seriesSetup}\n\nGenerate an ANCHOR photo first: a clear, well-lit family photo with all faces visible (a candid portrait moment). Keep it natural, not posed.` }
+    ];
+    if (referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')) {
+      anchorParts.push(
+        { text: 'Reference photo (use ONLY for identity/facial features; ignore background/clothing):' },
+        dataUrlToInlineDataPart(String(referencePhotoDataUrl))
+      );
+    }
+
+    const anchorResponse = await chat.sendMessage({ message: anchorParts as any });
+    const anchorImage = extractFirstInlineImage(anchorResponse);
+    if (!anchorImage) {
+      return NextResponse.json({ error: 'Failed to generate anchor image' }, { status: 500 });
+    }
+
+    // Step 4: Generate each scene, with a consistency check + single retry if needed
     const images: Array<{ imageUrl: string; sceneDescription: string; index: number }> = [];
+
+    const consistencySchema = {
+      type: 'object',
+      properties: {
+        consistent: { type: 'boolean' },
+        issues: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              person: { type: 'string' },
+              issue: { type: 'string' },
+              severity: { type: 'number' } // 1=minor, 2=medium, 3=major
+            },
+            required: ['person', 'issue', 'severity']
+          }
+        },
+        fixPrompt: { type: 'string' }
+      },
+      required: ['consistent', 'issues', 'fixPrompt']
+    } as const;
 
     for (const scene of sceneIdeas) {
       const basePrompt = `Shot ${scene.index + 1} of 5 (${scene.timeOfDay}):
@@ -156,30 +194,67 @@ ${scene.sceneDescription}
 
 Must be the SAME FAMILY as previous shots. Match faces and hair exactly.`;
 
-      let message: any = basePrompt;
-      if (scene.index === 0) {
-        const parts: any[] = [
-          {
-            text:
-              `${seriesSetup}\n\n${basePrompt}` +
-              `\n\nFor shot 1, ensure all faces are clearly visible (establishing family moment) to lock identity for the series.`
-          }
-        ];
-        if (referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')) {
-          parts.push(
-            { text: 'Reference photo (use ONLY for identity/facial features; ignore background/clothing):' },
-            dataUrlToInlineDataPart(String(referencePhotoDataUrl))
-          );
-        }
-        message = parts;
-      }
+      const imagePrompt = `Create a photorealistic lifestyle photograph for this scene:
 
-      const sceneResponse = await chat.sendMessage({ message });
+${scene.sceneDescription}
+
+CRITICAL - CHARACTER CONSISTENCY (Image ${scene.index + 1} of 5):
+This is part of a series of 5 images showing the SAME FAMILY throughout a single day. Visual consistency is absolutely critical.
+
+Must match the SAME people as the anchor image. Match faces, hair, skin tone, and distinctive features exactly.
+No text overlays. Professional, candid photography.`;
+
+      const sceneResponse = await chat.sendMessage({ message: imagePrompt });
 
       let sceneImage = extractFirstInlineImage(sceneResponse);
 
       if (!sceneImage) {
         continue;
+      }
+
+      // Consistency judge (Gemini 3 Pro): compare anchor vs current and suggest minimal corrections.
+      try {
+        const judgePrompt = `You are checking character consistency across a photo series.
+
+Compare the ANCHOR image and the CURRENT image. Determine if the people are the same individuals.
+Focus on facial structure, hair, skin tone, and distinctive features. Ignore clothing changes within the day.
+
+Return JSON only.
+If inconsistent, produce a short "fixPrompt" that can be used to regenerate/edit the current image while keeping the scene intact.`;
+
+        const judgeResponse = await ai.models.generateContent({
+          model: textModel,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: judgePrompt },
+                { text: 'ANCHOR:' },
+                { inlineData: { mimeType: anchorImage.mimeType, data: anchorImage.data } },
+                { text: 'CURRENT:' },
+                { inlineData: { mimeType: sceneImage.mimeType, data: sceneImage.data } }
+              ]
+            }
+          ],
+          config: {
+            responseMimeType: 'application/json',
+            responseJsonSchema: consistencySchema
+          }
+        });
+
+        const judged = safeJsonParse<{ consistent: boolean; fixPrompt: string; issues: Array<{ severity: number }> }>(
+          getResponseText(judgeResponse)
+        );
+        const hasMajorIssue = (judged.issues || []).some(i => Number(i.severity) >= 3);
+
+        if (judged.consistent === false && (hasMajorIssue || judged.fixPrompt?.trim())) {
+          const retryPrompt = `Regenerate the previous image for the same scene. Apply these identity fixes while preserving the scene, lighting, and composition:\n${judged.fixPrompt || ''}`;
+          const retryResponse = await chat.sendMessage({ message: retryPrompt });
+          const retryImage = extractFirstInlineImage(retryResponse);
+          if (retryImage) sceneImage = retryImage;
+        }
+      } catch {
+        // If judge fails, still return the generated image.
       }
 
       images.push({
