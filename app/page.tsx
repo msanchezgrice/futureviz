@@ -100,7 +100,7 @@ export default function Page() {
               years: [yearData], // Generate one year at a time
               characterDescriptions: plan.characterDescriptions,
               people: plan.people,
-              cityPlan: plan.cityPlan
+              referencePhotoDataUrl: plan.familyPhotos?.[0]?.dataUrl
             })
           });
 

@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createGeminiClient, dataUrlToInlineDataPart, getGeminiModels, safeJsonParse } from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { photoDataUrl, people } = body || {};
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json({
-      error: 'OPENAI_API_KEY not configured'
-    }, { status: 400 });
-  }
+  const hasKey = !!process.env.GEMINI_API_KEY;
 
   if (!photoDataUrl) {
     return NextResponse.json({
@@ -19,96 +14,84 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
+  if (!hasKey) {
+    return NextResponse.json({
+      error: 'GEMINI_API_KEY not configured'
+    }, { status: 400 });
+  }
+
   try {
-    // Use OpenAI Vision to analyze the photo and extract character descriptions
-    const peopleList = people?.map((p: any) => p.name).join(', ') || 'family members';
+    const ai = createGeminiClient();
+    const { textModel } = getGeminiModels();
 
-    const prompt = `You are a character design reference assistant for AI-generated artwork. I'm creating a family timeline visualization project.
+    const expectedNames = Array.isArray(people) ? people.map((p: any) => p.name).filter(Boolean) : [];
+    const peopleList = expectedNames.length ? expectedNames.join(', ') : 'family members';
 
-Count the number of people in this image and create general character design reference notes for each person to maintain visual consistency across AI-generated images.
+    const prompt = `You are a character consistency assistant for AI-generated photorealistic images.
 
-Expected people: ${peopleList}
+Task: From the provided family photo, extract visual identity notes that can be used to keep the SAME people consistent across generated images.
 
-For each person in the image, provide general artistic reference notes:
-- Age category (infant, toddler, child, teen, young adult, middle-aged, senior)
-- Build type (petite, average, athletic, stocky)
-- Hair color and length (blonde/brown/black/red/gray, short/medium/long)
-- General coloring (fair, medium, tan, deep complexion)
-- Style aesthetic shown (casual, formal, sporty, etc.)
+Expected people (use these names if possible): ${peopleList}
 
-These are reference notes for character consistency in illustrated/AI-generated art, similar to character sheets used in animation.
+Rules:
+- Only describe observable physical traits and styling. Avoid guessing sensitive attributes or personal identity.
+- Be concise but specific; these notes will be reused as a "character bible".
+- If fewer/more people appear than expected, still produce best-effort entries and name unknowns as "Unknown 1", etc.
 
-Return this exact JSON structure:
-{
-  "descriptions": [
-    {
-      "name": "Person 1",
-      "description": "General character design notes..."
-    }
-  ]
-}
+Return JSON only.`;
 
-Match the person count and use the names I provided if possible.`;
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are creating character reference sheets for animated/illustrated content. Provide general design notes similar to what would appear on animation character sheets. Focus on artistic style elements, not personal identification. Always return valid JSON.'
-          },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: photoDataUrl,
-                  detail: 'high'
-                }
-              }
-            ]
+    const schema = {
+      type: 'object',
+      properties: {
+        descriptions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              visualFingerprint: {
+                type: 'object',
+                properties: {
+                  hair: { type: 'string' },
+                  eyes: { type: 'string' },
+                  face: { type: 'string' },
+                  skinTone: { type: 'string' },
+                  build: { type: 'string' },
+                  distinctiveFeatures: { type: 'string' },
+                  typicalStyle: { type: 'string' }
+                },
+                required: ['hair', 'eyes', 'face', 'skinTone', 'build', 'distinctiveFeatures', 'typicalStyle']
+              },
+              description: { type: 'string' }
+            },
+            required: ['name', 'visualFingerprint', 'description']
           }
-        ],
-        max_tokens: 1500,
-        temperature: 0.3
-      })
+        }
+      },
+      required: ['descriptions']
+    } as const;
+
+    const inlineImagePart = dataUrlToInlineDataPart(photoDataUrl);
+
+    const response = await ai.models.generateContent({
+      model: textModel,
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }, inlineImagePart]
+        }
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: schema
+      }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error: ${errorText}`);
-    }
-
-    const data = await response.json();
-    const rawContent = data.choices?.[0]?.message?.content || '';
-
-    // Parse JSON response
-    let parsedDescriptions;
-    try {
-      // Try to extract JSON if it's wrapped in markdown code blocks
-      const jsonMatch = rawContent.match(/```json\s*([\s\S]*?)\s*```/) || rawContent.match(/```\s*([\s\S]*?)\s*```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : rawContent;
-      parsedDescriptions = JSON.parse(jsonStr);
-    } catch (e) {
-      console.error('Failed to parse JSON, using raw text:', rawContent);
-      // Fallback: return raw text as single description
-      return NextResponse.json({
-        characterDescriptions: [
-          { personId: people?.[0]?.id || 'unknown', personName: 'Family', description: rawContent }
-        ]
-      });
-    }
+    const parsed = safeJsonParse<{ descriptions: Array<{ name: string; description: string }> }>(response.text || '');
+    const parsedDescriptions = parsed || { descriptions: [] };
 
     // Map descriptions to person IDs
-    const characterDescriptions = parsedDescriptions.descriptions?.map((desc: any) => {
+    const characterDescriptions = (parsedDescriptions.descriptions || []).map((desc: any) => {
       // Find matching person by name (case-insensitive)
       const matchingPerson = people?.find((p: any) =>
         p.name.toLowerCase().includes(desc.name.toLowerCase()) ||
@@ -118,9 +101,9 @@ Match the person count and use the names I provided if possible.`;
       return {
         personId: matchingPerson?.id || 'unknown',
         personName: matchingPerson?.name || desc.name,
-        description: desc.description
+        description: desc.description || ''
       };
-    }) || [];
+    }).filter((d: any) => d.description && String(d.description).trim().length > 0);
 
     return NextResponse.json({
       characterDescriptions

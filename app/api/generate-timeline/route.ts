@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import {
+  createGeminiClient,
+  dataUrlToInlineDataPart,
+  extractFirstInlineImage,
+  getGeminiModels,
+  getImageDefaults,
+  inlineImageToDataUrl
+} from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for generating multiple years
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { years, characterDescriptions, people, cityPlan } = body || {};
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const { years, characterDescriptions, people, referencePhotoDataUrl } = body || {};
 
-  if (!geminiApiKey) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({
       error: 'GEMINI_API_KEY not configured'
     }, { status: 400 });
@@ -22,19 +28,56 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+    const ai = createGeminiClient();
+    const { imageModel } = getGeminiModels();
+    const { imageSize, aspectRatio } = getImageDefaults();
 
     // Generate images for all years
     const timelineImages = [];
 
+    // Physical appearance descriptions from uploaded photos (phenotype - stays constant)
+    const physicalDescriptions = Array.isArray(characterDescriptions)
+      ? characterDescriptions.map((cd: any) => `${cd.personName}: ${cd.description}`).join('\n\n')
+      : '';
+
+    const shouldUseChatForConsistency = Array.isArray(years) && years.length > 1;
+    const chat = shouldUseChatForConsistency
+      ? ai.chats.create({
+          model: imageModel,
+          config: {
+            responseModalities: ['IMAGE'],
+            imageConfig: { imageSize, aspectRatio }
+          }
+        })
+      : null;
+
+    if (chat) {
+      const setupParts: any[] = [
+        {
+          text:
+            `You are generating a timeline of photorealistic family lifestyle photos across multiple years.\n\n` +
+            `Hard requirements:\n` +
+            `- The same exact individuals across years (identical facial identity).\n` +
+            `- Ages should change appropriately by year.\n` +
+            `- Photorealistic, professional photography; no text overlays.\n\n` +
+            (physicalDescriptions ? `Character bible (must match across all years):\n${physicalDescriptions}\n\n` : '') +
+            `First, generate an ANCHOR family photo with clear, well-lit faces (natural candid moment).`
+        }
+      ];
+      if (referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')) {
+        setupParts.push(
+          { text: 'Reference photo (use ONLY for identity/facial features; ignore background/clothing):' },
+          dataUrlToInlineDataPart(String(referencePhotoDataUrl))
+        );
+      }
+
+      // Anchor (not returned, but kept in chat history for consistency)
+      await chat.sendMessage({ message: setupParts as any });
+    }
+
     for (const yearData of years) {
       const { year, summary } = yearData;
       const city = summary?.city || 'a beautiful location';
-
-      // Physical appearance descriptions from uploaded photos (phenotype - stays constant)
-      const physicalDescriptions = Array.isArray(characterDescriptions)
-        ? characterDescriptions.map((cd: any) => `${cd.personName}: ${cd.description}`).join('\n\n')
-        : '';
 
       // Age-based characteristics for this specific year
       const ageDescriptions = people?.map((p: any) => {
@@ -67,10 +110,7 @@ ${ageDescriptions}
 Show each person at their correct age and life stage.
 ` : ''}
 
-${physicalDescriptions ? `PHYSICAL APPEARANCE (stays constant across all years):
-${physicalDescriptions}
-
-` : ''}Style: High-end nature photography aesthetic inspired by Patagonia catalogs, Pinterest lifestyle boards, and National Geographic.
+Style: High-end nature photography aesthetic inspired by Patagonia catalogs, Pinterest lifestyle boards, and National Geographic.
 - Warm, natural lighting (golden hour preferred)
 - Authentic, candid family moment
 - Connection to nature and place
@@ -78,37 +118,40 @@ ${physicalDescriptions}
 - Rich colors, professional composition
 - Focus on human connection and everyday beauty
 
-Show the family together in ${city}, capturing the essence of their life in this year. Photorealistic quality, professional photography, no text overlays.`;
+      Show the family together in ${city}, capturing the essence of their life in this year. Photorealistic quality, professional photography, no text overlays.`;
 
       try {
-        const result = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: imagePrompt
-        });
+        const result = chat
+          ? await chat.sendMessage({ message: imagePrompt })
+          : await ai.models.generateContent({
+              model: imageModel,
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    { text: physicalDescriptions ? `${imagePrompt}\n\nCharacter bible:\n${physicalDescriptions}` : imagePrompt },
+                    ...(referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')
+                      ? [
+                          { text: 'Reference photo (use ONLY for identity/facial features; ignore background/clothing):' },
+                          dataUrlToInlineDataPart(String(referencePhotoDataUrl))
+                        ]
+                      : [])
+                  ]
+                }
+              ],
+              config: {
+                responseModalities: ['IMAGE'],
+                imageConfig: { imageSize, aspectRatio }
+              }
+            });
 
-        const imageDataBase64 = result.data;
-
-        if (imageDataBase64) {
+        const image = extractFirstInlineImage(result as any);
+        if (image) {
           timelineImages.push({
             year,
-            imageUrl: `data:image/png;base64,${imageDataBase64}`,
+            imageUrl: inlineImageToDataUrl(image),
             generatedAt: Date.now()
           });
-        } else {
-          // Fallback to checking candidates
-          const parts = result.candidates?.[0]?.content?.parts || [];
-          for (const part of parts) {
-            if (part.inlineData) {
-              const imageData = part.inlineData.data;
-              const mimeType = part.inlineData.mimeType || 'image/png';
-              timelineImages.push({
-                year,
-                imageUrl: `data:${mimeType};base64,${imageData}`,
-                generatedAt: Date.now()
-              });
-              break;
-            }
-          }
         }
       } catch (err: any) {
         console.error(`Error generating image for year ${year}:`, err.message);

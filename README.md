@@ -21,8 +21,8 @@ An AI-powered family timeline planning app that helps you visualize and plan you
 
 - **Next.js 14.2.5** - React framework
 - **TypeScript** - Type-safe development
-- **OpenAI GPT-4o** - Text generation and photo analysis
-- **Gemini 2.5 Flash Image** - AI image generation
+- **Gemini 3 Pro (Preview)** - Text generation and photo analysis
+- **Gemini 3 Pro Image (Preview)** - AI image generation (default 1K output)
 - **Canvas API** - Client-side image compression
 - **localStorage** - Browser-based persistence
 
@@ -31,17 +31,13 @@ An AI-powered family timeline planning app that helps you visualize and plan you
 You need to set up the following environment variables:
 
 \`\`\`bash
-OPENAI_API_KEY=your_openai_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 \`\`\`
 
 ### Getting API Keys:
 
-1. **OpenAI API Key**: Get from [platform.openai.com](https://platform.openai.com/api-keys)
-   - Used for: Text generation (Day Composer) and photo analysis (GPT-4o Vision)
-
-2. **Gemini API Key**: Get from [ai.google.dev](https://ai.google.dev/)
-   - Used for: Image generation (Gemini 2.5 Flash Image)
+1. **Gemini API Key**: Get from [ai.google.dev](https://ai.google.dev/)
+   - Used for: Text generation, photo analysis, and image generation
 
 ## Deployment on Vercel
 
@@ -50,7 +46,6 @@ GEMINI_API_KEY=your_gemini_api_key_here
 Add these to your Vercel project settings:
 
 \`\`\`
-OPENAI_API_KEY=sk-proj-...
 GEMINI_API_KEY=AIza...
 \`\`\`
 
@@ -68,7 +63,7 @@ GEMINI_API_KEY=AIza...
 npm install
 
 # Create .env.local file
-cp .env.local.example .env.local
+cp .env.example .env.local
 # Then add your API keys to .env.local
 
 # Run development server

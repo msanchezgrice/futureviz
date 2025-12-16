@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import {
+  createGeminiClient,
+  dataUrlToInlineDataPart,
+  extractFirstInlineImage,
+  getGeminiModels,
+  getImageDefaults,
+  inlineImageToDataUrl
+} from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { year, context, dayComposerText, characterDescriptions } = body || {};
-  const apiKey = process.env.GEMINI_API_KEY;
+  const { year, context, dayComposerText, characterDescriptions, referencePhotoDataUrl } = body || {};
 
-  if (!apiKey) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json({
       error: 'GEMINI_API_KEY not configured'
     }, { status: 400 });
@@ -127,46 +133,41 @@ Setting: ${city}, capturing the essence of life in this location during ${year}.
 The image should evoke possibility, warmth, and the beauty of everyday life. Photorealistic quality, professional photography, no text overlays.`;
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGeminiClient();
+    const { imageModel } = getGeminiModels();
+    const { imageSize, aspectRatio } = getImageDefaults();
 
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: prompt
-    });
-
-    // Try to get image data from the response using the data getter
-    const imageDataBase64 = result.data;
-
-    if (imageDataBase64) {
-      // The data getter returns the inline data as a base64 string
-      return NextResponse.json({
-        imageUrl: `data:image/png;base64,${imageDataBase64}`,
-        prompt: prompt.substring(0, 200) + '...'
-      });
+    const parts: any[] = [{ text: prompt }];
+    if (referencePhotoDataUrl && String(referencePhotoDataUrl).startsWith('data:')) {
+      parts.push(
+        { text: 'Reference photo (use ONLY for identity/facial features; ignore background/clothing):' },
+        dataUrlToInlineDataPart(String(referencePhotoDataUrl))
+      );
     }
 
-    // Fallback: Check if we have image data in candidates
-    const parts = result.candidates?.[0]?.content?.parts || [];
-
-    for (const part of parts) {
-      if (part.inlineData) {
-        // Return the image as base64 data URL
-        const imageData = part.inlineData.data;
-        const mimeType = part.inlineData.mimeType || 'image/png';
-        return NextResponse.json({
-          imageUrl: `data:${mimeType};base64,${imageData}`,
-          prompt: prompt.substring(0, 200) + '...'
-        });
+    const result = await ai.models.generateContent({
+      model: imageModel,
+      contents: [{ role: 'user', parts }],
+      config: {
+        responseModalities: ['IMAGE'],
+        imageConfig: { imageSize, aspectRatio }
       }
+    });
+
+    const image = extractFirstInlineImage(result);
+    if (image) {
+      return NextResponse.json({
+        imageUrl: inlineImageToDataUrl(image),
+        prompt: prompt.substring(0, 200) + '...'
+      });
     }
 
     // If no image was generated, return error with debug info
     return NextResponse.json({
       error: 'No image generated in response',
       debug: {
-        hasData: !!imageDataBase64,
         candidatesCount: result.candidates?.length || 0,
-        firstCandidatePartsCount: parts.length
+        firstCandidatePartsCount: result.candidates?.[0]?.content?.parts?.length || 0
       }
     }, { status: 500 });
 

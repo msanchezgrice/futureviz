@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createGeminiClient, getGeminiModels, safeJsonParse } from '../../../lib/gemini';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Allow up to 60 seconds for generating all 5 days
@@ -22,18 +23,11 @@ const DAY_TYPE_DEFAULTS: Record<string, (year: number) => string> = {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { year, dayType = 'christmas', context, generateAll = false } = body || {};
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  console.log('=== AI API CALLED ===');
-  console.log('Year:', year);
-  console.log('Day Type:', dayType);
-  console.log('Generate All:', generateAll);
-  console.log('Has API Key:', !!apiKey);
 
   const defaultText = DAY_TYPE_DEFAULTS[dayType]?.(year) || DAY_TYPE_DEFAULTS.christmas(year);
 
-  if (!apiKey) {
-    // No key configured – return a helpful stub text so the app still works.
+  if (!process.env.GEMINI_API_KEY) {
+    // No key configured – return helpful stub text so the app still works.
     if (generateAll) {
       const allDayTexts: Record<string, string> = {};
       Object.keys(DAY_TYPE_DEFAULTS).forEach(dt => {
@@ -45,80 +39,96 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // If generateAll is true, generate all 5 day types at once
+    const ai = createGeminiClient();
+    const { textModel } = getGeminiModels();
+
     if (generateAll) {
-      const allDayTypes = Object.keys(DAY_TYPE_PROMPTS);
-      const allPromises = allDayTypes.map(async (dt) => {
-        const dayPrompt = DAY_TYPE_PROMPTS[dt];
-        const prompt = [
-          { role: 'system', content: 'You write concise, warm, concrete day-in-the-life vignettes for families planning the future.' },
-          { role: 'user', content: `Write a vivid single-paragraph day-in-the-life set on ${dayPrompt} in ${year}. Use these facts as soft context: ${JSON.stringify(context)}. Keep it grounded (no fantasy). Capture the specific feeling and traditions of this particular day.` }
-        ];
+      const prompt = `Write vivid, grounded, single-paragraph day-in-the-life vignettes for a family's future planning timeline.
 
-        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: prompt,
-            temperature: 0.8,
-            max_tokens: 250
-          })
-        });
+Requirements:
+- No fantasy/sci-fi, no melodrama, no clichés.
+- Use concrete sensory details and specific routines.
+- Keep each vignette 90–140 words.
+- Use context as soft guidance; do not invent extreme facts.
 
-        if (!resp.ok) {
-          return { dayType: dt, text: DAY_TYPE_DEFAULTS[dt]?.(year) || '' };
+Year: ${year}
+Context (JSON): ${JSON.stringify(context ?? {})}
+
+Generate one vignette for each day type: christmas, thanksgiving, summer, spring, birthday.
+Return JSON only.`;
+
+      const schema = {
+        type: 'object',
+        properties: {
+          allDayTexts: {
+            type: 'object',
+            properties: {
+              christmas: { type: 'string' },
+              thanksgiving: { type: 'string' },
+              summer: { type: 'string' },
+              spring: { type: 'string' },
+              birthday: { type: 'string' }
+            },
+            required: ['christmas', 'thanksgiving', 'summer', 'spring', 'birthday']
+          }
+        },
+        required: ['allDayTexts']
+      } as const;
+
+      const response = await ai.models.generateContent({
+        model: textModel,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseJsonSchema: schema
         }
-
-        const j = await resp.json();
-        const text = j.choices?.[0]?.message?.content || DAY_TYPE_DEFAULTS[dt]?.(year) || '';
-        return { dayType: dt, text };
       });
 
-      const results = await Promise.all(allPromises);
-      const allDayTexts: Record<string, string> = {};
-      results.forEach(r => {
-        allDayTexts[r.dayType] = r.text;
-      });
+      const parsed = safeJsonParse<{ allDayTexts: Record<string, string> }>(response.text || '');
+      const allDayTexts = parsed.allDayTexts || {};
 
-      console.log('=== RETURNING ALL DAY TEXTS ===');
-      console.log('Keys:', Object.keys(allDayTexts));
-      console.log('Sample text length:', allDayTexts.christmas?.length || 0);
+      // Ensure all keys exist with sensible fallbacks.
+      (Object.keys(DAY_TYPE_DEFAULTS) as Array<keyof typeof DAY_TYPE_DEFAULTS>).forEach((dt) => {
+        if (!allDayTexts[dt]) allDayTexts[dt] = DAY_TYPE_DEFAULTS[dt](year);
+      });
 
       return NextResponse.json({ allDayTexts });
     }
 
     // Single day type generation
     const dayPrompt = DAY_TYPE_PROMPTS[dayType] || 'a day';
-    const prompt = [
-      { role: 'system', content: 'You write concise, warm, concrete day-in-the-life vignettes for families planning the future.' },
-      { role: 'user', content: `Write a vivid single-paragraph day-in-the-life set on ${dayPrompt} in ${year}. Use these facts as soft context: ${JSON.stringify(context)}. Keep it grounded (no fantasy). Capture the specific feeling and traditions of this particular day.` }
-    ];
 
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: prompt,
-        temperature: 0.8,
-        max_tokens: 250
-      })
+    const prompt = `Write one vivid, grounded, single-paragraph day-in-the-life vignette for a family planning their future.
+
+Requirements:
+- No fantasy/sci-fi, no melodrama, no clichés.
+- 90–140 words.
+- Concrete, specific details; avoid generic platitudes.
+- Use context as soft guidance; don't invent extreme facts.
+
+Day type: ${dayPrompt}
+Year: ${year}
+Context (JSON): ${JSON.stringify(context ?? {})}
+
+Return JSON only with key "text".`;
+
+    const schema = {
+      type: 'object',
+      properties: { text: { type: 'string' } },
+      required: ['text']
+    } as const;
+
+    const response = await ai.models.generateContent({
+      model: textModel,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: schema
+      }
     });
 
-    if (!resp.ok) {
-      const e = await resp.text();
-      return NextResponse.json({ text: defaultText, error: e }, { status: 200 });
-    }
-    const j = await resp.json();
-    const text = j.choices?.[0]?.message?.content || defaultText;
-    return NextResponse.json({ text });
+    const parsed = safeJsonParse<{ text: string }>(response.text || '');
+    return NextResponse.json({ text: parsed.text || defaultText });
   } catch (err: any) {
     if (generateAll) {
       const allDayTexts: Record<string, string> = {};

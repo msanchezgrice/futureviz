@@ -215,9 +215,9 @@ export default function LandingPage() {
             maxWidth: '800px',
             margin: '0 auto 32px'
           }}>
-            All your data stays in your browser's local storage. Nothing is sent to any server
-            (except optional AI features if you provide your own API key). Your family's future
-            is yours and yours alone.
+            Your plan is stored in your browser&apos;s local storage. When you use optional AI features
+            (and provide your own API key), the relevant text/photo is sent to the Gemini API to
+            generate outputs. Your family&apos;s future is yours and yours alone.
           </p>
           <div style={{
             display: 'flex',
@@ -394,4 +394,3 @@ function Badge({ icon, text }: { icon: string; text: string }) {
     </div>
   );
 }
-

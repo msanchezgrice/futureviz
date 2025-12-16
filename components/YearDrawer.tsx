@@ -72,8 +72,10 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           year,
+          dayType: currentDayType,
           dayComposerText: text,
           characterDescriptions: plan.characterDescriptions, // Pass character descriptions for consistency
+          referencePhotoDataUrl: plan.familyPhotos?.[0]?.dataUrl,
           context: {
             summary: s,
             people: plan.people,
@@ -268,7 +270,7 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
                   {isGeneratingAllDays ? 'Generating All Days...' : '✨ Generate All 5 Days'}
                 </button>
               </div>
-              <div className="small">OpenAI generates {DAY_TYPES.find(d => d.type === currentDayType)?.label.toLowerCase()} vignettes</div>
+              <div className="small">Gemini generates {DAY_TYPES.find(d => d.type === currentDayType)?.label.toLowerCase()} vignettes</div>
             </div>
           </div>
 
