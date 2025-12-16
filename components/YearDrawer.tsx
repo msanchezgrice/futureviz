@@ -31,6 +31,7 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
   const [generatedImages, setGeneratedImages] = React.useState<Array<{imageUrl: string, sceneDescription: string, index: number}>>([]);
   const [currentImageIndex, setCurrentImageIndex] = React.useState(0);
   const [isGeneratingImage, setIsGeneratingImage] = React.useState(false);
+  const [imageProgress, setImageProgress] = React.useState<{ current: number; total: number } | null>(null);
   const [imageError, setImageError] = React.useState<string | null>(null);
   const [isGeneratingAllDays, setIsGeneratingAllDays] = React.useState(false);
   const [isGeneratingThisDay, setIsGeneratingThisDay] = React.useState(false);
@@ -65,54 +66,85 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
   const handleGenerateImages = async () => {
     setIsGeneratingImage(true);
     setImageError(null);
+    setImageProgress({ current: 0, total: 5 });
     try {
       console.log(`[YearDrawer] Generating images for ${year} ${currentDayType}`);
-      const res = await fetch('/api/generate-images', {
+      const contextPayload = {
+        summary: s,
+        people: plan.people,
+        cityPlan: plan.cityPlan
+      };
+
+      // 1) Generate scene list (fast, structured)
+      const scenesRes = await fetch('/api/generate-scenes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           year,
           dayType: currentDayType,
           dayComposerText: text,
-          characterDescriptions: plan.characterDescriptions, // Pass character descriptions for consistency
-          referencePhotoDataUrl: plan.familyPhotos?.[0]?.dataUrl,
-          context: {
-            summary: s,
-            people: plan.people,
-            cityPlan: plan.cityPlan
-          }
+          context: contextPayload
         })
       });
-      let data: any = null;
-      let rawText: string | null = null;
-      try {
-        data = await res.json();
-      } catch {
-        rawText = await res.text().catch(() => null);
+      const scenesJson = await scenesRes.json();
+      if (!scenesRes.ok) throw new Error(scenesJson?.error || 'Failed to generate scenes');
+      const sceneIdeas = scenesJson?.sceneIdeas || [];
+
+      // 2) Generate anchor (identity lock)
+      const anchorRes = await fetch('/api/generate-anchor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year,
+          characterDescriptions: plan.characterDescriptions,
+          referencePhotoDataUrl: plan.familyPhotos?.[0]?.dataUrl,
+          context: contextPayload
+        })
+      });
+      const anchorJson = await anchorRes.json();
+      if (!anchorRes.ok) throw new Error(anchorJson?.error || 'Failed to generate anchor image');
+      const anchorImageUrl = anchorJson?.anchorImageUrl;
+
+      // 3) Generate each image sequentially to avoid Vercel timeouts
+      const images: Array<{ imageUrl: string; sceneDescription: string; index: number }> = [];
+      for (let i = 0; i < sceneIdeas.length; i++) {
+        setImageProgress({ current: i + 1, total: sceneIdeas.length });
+        const scene = sceneIdeas[i];
+
+        const imgRes = await fetch('/api/generate-scene-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            year,
+            context: contextPayload,
+            characterDescriptions: plan.characterDescriptions,
+            sceneDescription: scene.sceneDescription,
+            timeOfDay: scene.timeOfDay,
+            index: i,
+            anchorImageUrl,
+            referencePhotoDataUrl: plan.familyPhotos?.[0]?.dataUrl
+          })
+        });
+
+        const imgJson = await imgRes.json();
+        if (!imgRes.ok) throw new Error(imgJson?.error || `Failed to generate image ${i + 1}`);
+
+        images.push({
+          imageUrl: imgJson.imageUrl,
+          sceneDescription: imgJson.sceneDescription || scene.sceneDescription,
+          index: i
+        });
+
+        setGeneratedImages([...images]);
+        setCurrentImageIndex(0);
+        onSaveVisionImages(year, currentDayType, [...images]);
       }
-
-      if (!res.ok) {
-        const message =
-          data?.error ||
-          (rawText ? rawText.slice(0, 200) : null) ||
-          `Failed to generate images (HTTP ${res.status})`;
-        throw new Error(message);
-      }
-
-      const images = data?.images || [];
-      console.log(`[YearDrawer] Received ${images.length} images from API`);
-      setGeneratedImages(images);
-      setCurrentImageIndex(0);
-
-      // Persist images to plan
-      console.log(`[YearDrawer] Calling onSaveVisionImages for ${year} ${currentDayType}`);
-      onSaveVisionImages(year, currentDayType, images);
-      console.log('[YearDrawer] onSaveVisionImages called successfully');
     } catch (err: any) {
       console.error('[YearDrawer] Error generating images:', err);
       setImageError(err.message || 'Failed to generate images');
     } finally {
       setIsGeneratingImage(false);
+      setImageProgress(null);
     }
   };
 
@@ -364,7 +396,9 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
                 disabled={isGeneratingImage}
                 style={{ width: '100%', marginTop: '12px' }}
               >
-                {isGeneratingImage ? 'Generating 5 Visions... (30-40s)' : '✨ Generate 5 Vision Images'}
+                {isGeneratingImage
+                  ? (imageProgress ? `Generating images… ${imageProgress.current}/${imageProgress.total}` : 'Generating images…')
+                  : '✨ Generate 5 Vision Images'}
               </button>
               <div className="small" style={{ marginTop: '8px' }}>
                 Gemini creates 5 photorealistic scenes from different moments
