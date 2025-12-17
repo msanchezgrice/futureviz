@@ -66,7 +66,7 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
   const handleGenerateImages = async () => {
     setIsGeneratingImage(true);
     setImageError(null);
-    setImageProgress({ current: 0, total: 5 });
+    setImageProgress({ current: 0, total: 3 });
     try {
       console.log(`[YearDrawer] Generating images for ${year} ${currentDayType}`);
       const contextPayload = {
@@ -89,6 +89,7 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
       const scenesJson = await scenesRes.json();
       if (!scenesRes.ok) throw new Error(scenesJson?.error || 'Failed to generate scenes');
       const sceneIdeas = scenesJson?.sceneIdeas || [];
+      setImageProgress({ current: 0, total: sceneIdeas.length || 3 });
 
       // 2) Generate anchor (identity lock)
       const anchorRes = await fetch('/api/generate-anchor', {
@@ -324,8 +325,8 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
               <div className="sectionTitle">Vision Board</div>
               <div className="small" style={{ marginBottom: '12px' }}>
                 {text
-                  ? `5 photorealistic scenes from different moments of your ${DAY_TYPES.find(d => d.type === currentDayType)?.label}`
-                  : `Generate 5 aspirational images for a ${DAY_TYPES.find(d => d.type === currentDayType)?.label.toLowerCase()} in ${year}`}
+                  ? `3 photorealistic scenes from different moments of your ${DAY_TYPES.find(d => d.type === currentDayType)?.label}`
+                  : `Generate 3 aspirational images for a ${DAY_TYPES.find(d => d.type === currentDayType)?.label.toLowerCase()} in ${year}`}
               </div>
 
               {generatedImages.length > 0 ? (
@@ -396,12 +397,12 @@ export default function YearDrawer({ plan, year, onClose, onSaveJournal, onSaveA
                 disabled={isGeneratingImage}
                 style={{ width: '100%', marginTop: '12px' }}
               >
-                {isGeneratingImage
+              {isGeneratingImage
                   ? (imageProgress ? `Generating images… ${imageProgress.current}/${imageProgress.total}` : 'Generating images…')
-                  : '✨ Generate 5 Vision Images'}
+                  : '✨ Generate 3 Vision Images'}
               </button>
               <div className="small" style={{ marginTop: '8px' }}>
-                Gemini creates 5 photorealistic scenes from different moments
+                Gemini creates 3 photorealistic scenes from different moments
                 {!plan.characterDescriptions && (
                   <span style={{ display: 'block', marginTop: '4px', color: 'var(--accent)' }}>
                     💡 Tip: Upload family photos in Settings for better character consistency

@@ -4,6 +4,8 @@ import { createGeminiClient, getGeminiModels, getResponseText, safeJsonParse } f
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const DEFAULT_VISION_IMAGE_COUNT = 3;
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { year, dayType, context, dayComposerText } = body || {};
@@ -39,9 +41,9 @@ export async function POST(req: NextRequest) {
     const ai = createGeminiClient();
     const { textModel } = getGeminiModels();
 
-    const prompt = `You are a creative director turning a single day-in-the-life into a coherent 5-photo series.
+    const prompt = `You are a creative director turning a single day-in-the-life into a coherent ${DEFAULT_VISION_IMAGE_COUNT}-photo series.
 
-Goal: Produce 5 distinct photographic moments from ONE day, covering different times of day and activities.
+Goal: Produce ${DEFAULT_VISION_IMAGE_COUNT} distinct photographic moments from ONE day, covering different times of day and activities.
 
 Constraints:
 - Each scene MUST include the named people (best-effort) and fit their ages.
@@ -74,8 +76,8 @@ Return JSON only.`;
             },
             required: ['index', 'sceneDescription', 'timeOfDay']
           },
-          minItems: 5,
-          maxItems: 5
+          minItems: DEFAULT_VISION_IMAGE_COUNT,
+          maxItems: DEFAULT_VISION_IMAGE_COUNT
         }
       },
       required: ['sceneIdeas']
@@ -91,15 +93,15 @@ Return JSON only.`;
     });
 
     const parsed = safeJsonParse<{ sceneIdeas: Array<{ index: number; sceneDescription: string; timeOfDay: string }> }>(getResponseText(response));
-    const rawIdeas = (parsed.sceneIdeas || []).slice(0, 5);
+    const rawIdeas = (parsed.sceneIdeas || []).slice(0, DEFAULT_VISION_IMAGE_COUNT);
     const sceneIdeas = rawIdeas.map((s, i) => ({
       index: i,
       sceneDescription: String(s.sceneDescription || '').trim(),
       timeOfDay: String(s.timeOfDay || '').trim()
     })).filter(s => s.sceneDescription.length > 0);
 
-    if (sceneIdeas.length !== 5) {
-      return NextResponse.json({ error: 'Failed to generate 5 scene ideas' }, { status: 500 });
+    if (sceneIdeas.length !== DEFAULT_VISION_IMAGE_COUNT) {
+      return NextResponse.json({ error: `Failed to generate ${DEFAULT_VISION_IMAGE_COUNT} scene ideas` }, { status: 500 });
     }
 
     return NextResponse.json({ sceneIdeas });
@@ -107,4 +109,3 @@ Return JSON only.`;
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-

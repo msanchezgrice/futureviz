@@ -12,6 +12,7 @@ import {
 
 export const runtime = 'nodejs';
 export const maxDuration = 240;
+const DEFAULT_VISION_IMAGE_COUNT = 3;
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
 
 ${sceneDescription}
 
-CRITICAL - CHARACTER CONSISTENCY (Image ${Number(index) + 1} of 5):
+CRITICAL - CHARACTER CONSISTENCY (Image ${Number(index) + 1} of ${DEFAULT_VISION_IMAGE_COUNT}):
 - This is part of a series showing the SAME FAMILY throughout ONE DAY.
 - The CURRENT image must match the ANCHOR image's identities exactly (faces/hair/skin tone/distinctive features).
 - Correct ages for the year.
@@ -200,4 +201,3 @@ If inconsistent, produce a short "fixPrompt" that can be used to regenerate the 
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 });
   }
 }
-
